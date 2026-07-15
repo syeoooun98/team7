@@ -362,6 +362,67 @@ export function groupSkillRanking(ranking) {
   return [...SKILL_GROUPS.map((g) => g.key), 'etc'].map((key) => buckets.get(key)).filter((b) => b.items.length > 0);
 }
 
+// 미보유 스킬 학습 로드맵(관련 자격증 제안)에 쓰는 참고용 큐레이션 데이터 — 실제 지원자/채용 통계가 아니다.
+// Supabase 공고 텍스트(requirements/preferred_points)에서 자격증 이름과 스킬 태그의 동시 언급 빈도를
+// 실제로 마이닝해봤지만(예: AWS ↔ RHCSA/CCNA), 표본이 공고 2~5건 수준으로 작아 우연한 동반 언급
+// (예: AWS ↔ OPIc, 마케팅 전략 ↔ CPA)과 실제 연관성을 구분할 신뢰도가 없었다. 그래서 통계 대신
+// 스킬(또는 스킬이 속한 분류)과 실제로 존재하는 자격증 중 통상적으로 관련 있다고 알려진 것을
+// 사람이 골라 매핑했다 — 측정값이 아니라 참고 가이드로만 사용한다.
+const SKILL_SPECIFIC_CERTS = {
+  AWS: { certs: ['AWS Certified Solutions Architect – Associate', 'AWS Certified Developer – Associate'], note: '클라우드 실무 역량을 공식적으로 증명하는 벤더 자격증' },
+  Docker: { certs: ['Docker Certified Associate'], note: '컨테이너 운영 역량 증빙' },
+  Kubernetes: { certs: ['CKA (Certified Kubernetes Administrator)'], note: '컨테이너 오케스트레이션 실무 역량 증빙' },
+  SQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  MySQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  PostgreSQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  Linux: { certs: ['리눅스마스터', 'RHCSA'], note: '리눅스 운영 역량 증빙' },
+  '정보 보안': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  '보안 운영': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  '보안 정책': { certs: ['정보보안기사', 'CISA'], note: '보안 정책·감사 역량 증빙' },
+  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애널리틱스 역량 인증' },
+  '마케팅 분석': { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
+  '데이터 분석': { certs: ['ADsP', '빅데이터분석기사'], note: '데이터 분석 국가공인자격' },
+  PyTorch: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
+  Tensorflow: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
+  회계: { certs: ['공인회계사(CPA)', '전산회계', '재경관리사'], note: '회계 실무·전문성 증빙' },
+  '세무 회계': { certs: ['세무사', '전산세무'], note: '세무 실무 전문성 증빙' },
+  '물류 관리': { certs: ['물류관리사', '유통관리사'], note: '물류·유통 실무 국가공인자격' },
+  SCM: { certs: ['물류관리사', '국제무역사'], note: '공급망·무역 실무 자격' },
+};
+
+// 스킬 이름 개별 매핑에 없으면 groupSkillRanking()이 쓰는 SKILL_NAME_TO_GROUP_KEY로 분류를 찾아
+// 그룹 단위 대표 자격증으로 대체한다.
+const CERT_GROUP_FALLBACK = {
+  language: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙으로 흔히 요구되는 국가공인자격' },
+  'web-basics': { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  framework: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  database: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 국가공인자격' },
+  infra: { certs: ['리눅스마스터', '네트워크관리사'], note: '서버·네트워크 운영 역량 증빙' },
+  'data-ai': { certs: ['빅데이터분석기사', 'ADsP'], note: '데이터 분석 국가공인자격' },
+  mobile: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  design: { certs: ['GTQ', '웹디자인기능사'], note: '디자인 툴 활용 역량 국가공인자격' },
+  marketing: { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
+  'sales-biz': { certs: ['국제무역사', '유통관리사'], note: '영업·무역 실무 자격' },
+  hr: { certs: ['공인노무사'], note: '인사·노무 실무 전문 자격' },
+  'finance-accounting': { certs: ['공인회계사(CPA)', '전산회계'], note: '회계·재무 실무 전문 자격' },
+  security: { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  'engineering-design': { certs: ['전기기사', '일반기계기사'], note: '설계·엔지니어링 실무 국가공인자격' },
+  construction: { certs: ['건축기사', '토목기사'], note: '건설·건축 실무 국가공인자격' },
+  'logistics-scm': { certs: ['물류관리사', '유통관리사'], note: '물류·유통 실무 국가공인자격' },
+  'quality-manufacturing': { certs: ['품질경영기사'], note: '품질 관리 실무 국가공인자격' },
+  'bio-pharma': { certs: ['위생사'], note: '바이오·제약 관련 국가공인자격' },
+  legal: { certs: ['변호사'], note: '법률 실무 전문 자격' },
+  qa: { certs: ['ISTQB'], note: 'SW 테스트 국제 자격증' },
+};
+
+/** 스킬 이름 → { certs: string[], note: string } | null. 개별 매핑 → 그룹 대체 순으로 조회한다. */
+export function getCertSuggestion(skillName) {
+  if (SKILL_SPECIFIC_CERTS[skillName]) return SKILL_SPECIFIC_CERTS[skillName];
+  const groupKey = SKILL_NAME_TO_GROUP_KEY.get(skillName.toLowerCase());
+  if (groupKey && CERT_GROUP_FALLBACK[groupKey]) return CERT_GROUP_FALLBACK[groupKey];
+  return null;
+}
+
 // annual_to=100은 "경력 상한 없음(무관)"을 뜻하는 원티드 API의 관례적 센티넬 값이라 평균 계산에서 제외한다.
 const ANNUAL_TO_UNLIMITED_SENTINEL = 99;
 

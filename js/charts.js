@@ -184,6 +184,24 @@ export function renderYearsGapBar(container, { avgYears, myYears, onChange } = {
   const meLabel = meMarker.querySelector('.years-gap-marker__label');
   const gapLabel = el.querySelector('.years-gap-marker__label--gap');
 
+  // 라벨이 카드 좌우 경계를 넘어가면(마커가 트랙 양 끝 근처일 때) 가운데 정렬 대신
+  // 안쪽으로 밀어서 절대 container 밖으로 나가지 않게 한다.
+  function clampLabelToContainer(labelEl) {
+    labelEl.style.transform = 'translateX(-50%)';
+    const labelRect = labelEl.getBoundingClientRect();
+    const boundsRect = container.getBoundingClientRect();
+    const SAFE_MARGIN = 4;
+    let shift = 0;
+    if (labelRect.left < boundsRect.left + SAFE_MARGIN) {
+      shift = boundsRect.left + SAFE_MARGIN - labelRect.left;
+    } else if (labelRect.right > boundsRect.right - SAFE_MARGIN) {
+      shift = boundsRect.right - SAFE_MARGIN - labelRect.right;
+    }
+    if (shift !== 0) {
+      labelEl.style.transform = `translateX(calc(-50% + ${shift}px))`;
+    }
+  }
+
   function paint(y) {
     currentYears = clampYears(y);
     const myPct = toPct(currentYears);
@@ -201,6 +219,9 @@ export function renderYearsGapBar(container, { avgYears, myYears, onChange } = {
     track.setAttribute('aria-valuenow', String(currentYears));
     gapLabel.textContent = `${gap >= 0 ? '+' : '-'}${Math.abs(gap).toFixed(1)}년`;
     gapLabel.className = `years-gap-marker__label years-gap-marker__label--gap years-gap-marker__label--${tone}`;
+
+    clampLabelToContainer(meLabel);
+    clampLabelToContainer(gapLabel);
   }
 
   paint(currentYears);
