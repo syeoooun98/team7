@@ -337,7 +337,7 @@ code {
 
 .kpi-card--wide { grid-column: 1 / -1; }
 
-/* 그리드 기본 stretch를 깨고 내용 높이만큼만 차지하게 한다(옆 카드가 더 길어도 안 늘어남) */
+/* 그리드 기본 stretch를 깨고 내용 높이만큼만 차지하게 한다(얷 카드가 더 길어도 안 늘어남) */
 .kpi-card--fit { align-self: start; }
 
 .kpi-card--urgent {
@@ -570,7 +570,7 @@ code {
 }
 
 /* 상승/하락 스킬 태그 목록 — 처음엔 그대로 정적으로 보이다가, 위에서부터 한 줄씩
-   1초 간격으로 딱 한 번씩만 살짝 커졌다 작아지는(튀는) 효과를 순서대로 재생한다. */
+   1초 간격으로 땅 한 번씩만 살짝 커졌다 작아지는(튀는) 효과를 순서대로 재생한다. */
 @keyframes mover-item-pop {
   0% { transform: scale(1); background: transparent; }
   40% { transform: scale(1.035); background: var(--color-primary-light); }
@@ -582,7 +582,7 @@ code {
   border-radius: var(--radius-sm);
 }
 
-/* 랭킹 도넛 차트 그룹 공통 타이틀 */
+/* 랭킹 도넘 차트 그룹 공통 타이틀 */
 .ranking-group-title {
   margin: 0 0 12px;
   font-size: 14px;
@@ -593,9 +593,9 @@ code {
   gap: 6px;
 }
 
-/* 도넛 랭킹 차트 (스킬 태그 언급량 / 매력 태그 효과) —
-   등장 시 이름표만 촤라락 펼쳐지고, 이후 비율이 가장 큰 조각부터 시계 방향으로 한 칸씩
-   0.7초간 살짝 커졌다 작아지며 그 옆에 인출선으로 연결된 수치를 보여주다가, 한 바퀴를
+/* 도넘 랭킹 차트 (스킬 태그 언급량 / 매력 태그 효과) —
+   등장 시 이름표만 촴라락 펼쳐지고, 이후 비율이 가장 큰 조각부터 시계 방향으로 한 칸씩
+   0.7초간 살짝 커졌다 작아지며 그 옷에 인출선으로 연결된 수치를 보여주다가, 한 바퀴를
    다 돌면 멈추고 정적인 상태로 유지된다. */
 .chart-card--donut { position: relative; }
 
@@ -608,14 +608,14 @@ code {
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
 }
 
-/* 도넛 아래 살짝 어긋난 블러 처리된 그림자로 입체감(뜬 느낌)을 준다 */
+/* 도넘 아래 살짝 어긋난 블러 처리된 그림자로 입체감(됀 느낌)을 준다 */
 .donut-shadow-disc {
   fill: rgba(0, 0, 0, 0.42);
   transform: translate(3px, 15px);
   filter: blur(4px);
 }
 
-/* 옆면(두께) — 도넛 앞쪽(아래 절반)에서만 보이는, 실제로 잘린 단면 같은 입체 벽. 이 옆면만으로 입체감을 낸다. */
+/* 옷면(두께) — 도넘 앞쪽(아래 절반)에서만 보이는, 실제로 잘린 단면 같은 입체 벽. 이 옷면만으로 입체감을 낸다. */
 .donut-wall { pointer-events: none; }
 
 .donut-segment {
@@ -644,9 +644,13 @@ code {
 }
 
 .donut-label {
-  font-size: 8.5px;
-  font-weight: 700;
-  fill: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--color-text);
+  paint-order: stroke;
+  stroke: var(--color-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
   dominant-baseline: middle;
 }
 
@@ -675,7 +679,7 @@ code {
   dominant-baseline: middle;
 }
 
-/* 도넛 범례 — 카드 우측 상단에 작게 띄운다. 조각과 같은 순서(진한 색 → 옅은 색)로 나열. */
+/* 도넘 범례 — 카드 우측 상단에 작게 띄운다. 조각과 같은 순서(진한 색 → 옷은 색)로 나열. */
 .donut-legend {
   position: absolute;
   top: 18px;
@@ -742,6 +746,24 @@ code {
   color: var(--color-text-faint);
   text-align: right;
   padding: 2px 0;
+}
+
+.rank-ladder__scale-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.rank-ladder__scale-pct { font-weight: 600; }
+
+/* 눈금(100/90/50/10%)마다 옷게 함께 보여주는 실제 금액 */
+.rank-ladder__scale-value {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .rank-ladder__track {
@@ -970,12 +992,12 @@ code {
   flex-direction: column;
   gap: 10px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
 .position-card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-4px) scale(1.015);
   border-color: var(--color-border-strong);
 }
 
@@ -1482,6 +1504,92 @@ code {
   font-size: 12.5px;
   color: var(--color-text-faint);
   text-align: center;
+}
+
+/* 검색창 우측의 펼침 화살표 — 엑셀 그룹 접기/펼치기처럼, 누르면 같은 회사의 전체 목록을 보여주고
+   화살표가 아래로 회전한다(닫히면 다시 원래 방향으로). */
+.searchable-select__input-row { position: relative; }
+.searchable-select__input-row .filter-search-input { padding-right: 34px; }
+
+.searchable-select__toggle {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-faint);
+}
+
+.searchable-select__toggle-arrow {
+  font-size: 16px;
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.searchable-select__toggle--open .searchable-select__toggle-arrow {
+  transform: rotate(-90deg);
+}
+
+/* 우리 회사 공고 배너 — 목록(그리드) 안에 섞이지 않고, 위에 가로로 길게 따로 보여준다 */
+.position-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+}
+
+.position-banner__ribbon {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #0d1a12;
+  background: var(--color-accent);
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.position-banner__main { flex: 1; min-width: 220px; }
+.position-banner__main .company-name { margin: 0; }
+
+.position-banner__title {
+  margin: 2px 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.position-banner__stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.position-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.position-banner__actions .card-cta {
+  margin-top: 0;
+  padding: 9px 16px;
+  white-space: nowrap;
 }
 
 /* ==================== 준비 중 플레이스홀더 ==================== */

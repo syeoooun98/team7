@@ -1,4 +1,4 @@
-// 각 탭에서 필요한 파생 지표 계산 — 전부 순수 함수(입력 → 출력)로 작성해 테스트/재사용이 쉽게 한다.
+// 각 탭에서 필요한 파생 지표 계산 — 전부 순수 함수(입력 → 출력)로 작성해 테스트/재사용이 쉬게 한다.
 
 const URGENT_WITHIN_DAYS = 7;
 const KNOWN_APPLY_TYPES = ['foreigner', 'alternative_military', 'disabled_person'];
@@ -264,7 +264,7 @@ const SKILL_GROUPS = [
     label: '마케팅·광고',
     skills: [
       'Google Analytics', 'GA', '마케팅 전략', '마케팅 운영', '마케팅 분석', '마케팅 관리', 'Amplitude', '마케팅 이벤트 기획', 'CRM', '홍보',
-      '브랜딩', '광고 대행사', '콘텐츠 제작', '광고 운영', '마케팅 커뮤니케이션', '컨텐츠 마케팅', '광고 관리', '인바운드 마케팅', 'SEO', '퍼포먼스 마케팅',
+      '브랜딩', '광고 대행사', '콘텐츠 제작', '광고 운영', '마케팅 커뮤니케이션', '컴텐츠 마케팅', '광고 관리', '인바운드 마케팅', 'SEO', '퍼포맨스 마케팅',
     ],
   },
   {
@@ -310,7 +310,7 @@ const SKILL_GROUPS = [
   {
     key: 'quality-manufacturing',
     label: '품질·생산관리',
-    skills: ['GMP', 'ISO', 'ISO 13485', '품질 관리', '품질 시스템', '품질 향상', '기록 관리', 'Fusion360', '납땜'],
+    skills: ['GMP', 'ISO', 'ISO 13485', '품질 관리', '품질 시스템', '품질 향상', '기록 관리', 'Fusion360', '납때'],
   },
   {
     key: 'bio-pharma',
@@ -348,7 +348,7 @@ SKILL_GROUPS.forEach((g) => g.skills.forEach((s) => SKILL_NAME_TO_GROUP_KEY.set(
 /**
  * computeCategorySkillFrequency().ranking을 언어/프레임워크/DB 등으로 묶는다.
  * 매핑되지 않은 스킬은 '기타' 그룹으로 모으고, 그룹 내부는 기존 count 내림차순을 유지한다.
- * 항목이 하나도 없는 그룹은 결과에서 제외한다.
+ * 항목이 하나도 없는 그룹은 결과에서 제외된다.
  */
 export function groupSkillRanking(ranking) {
   const buckets = new Map(SKILL_GROUPS.map((g) => [g.key, { key: g.key, label: g.label, items: [] }]));
@@ -379,7 +379,7 @@ const SKILL_SPECIFIC_CERTS = {
   '정보 보안': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
   '보안 운영': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
   '보안 정책': { certs: ['정보보안기사', 'CISA'], note: '보안 정책·감사 역량 증빙' },
-  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애널리틱스 역량 인증' },
+  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애넌리틱스 역량 인증' },
   '마케팅 분석': { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
   '데이터 분석': { certs: ['ADsP', '빅데이터분석기사'], note: '데이터 분석 국가공인자격' },
   PyTorch: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
@@ -516,7 +516,7 @@ export function getPositionsForCompany(positions, companyId) {
 /**
  * 보상금 백분위 — 같은 직군(category) 내 실제 positions.reward_total 분포에서의 정확한 순위.
  * category_market_stats(평균/P50/P90 3개 지점) 보간 대신, 이미 클라이언트에 전량 로드된
- * positions 데이터로 직접 순위를 계산해 근사가 아닌 정확한 값을 낸다.
+positions 데이터로 직접 순위를 계산해 근사가 아닌 정확한 값을 낸다.
  */
 export function computeRewardPercentileExact(reward, categoryPositions) {
   if (reward == null) return null;
@@ -525,6 +525,27 @@ export function computeRewardPercentileExact(reward, categoryPositions) {
   const countAtOrBelow = sample.filter((p) => p.reward_total <= reward).length;
   const percentile = Math.max(1, Math.min(99, Math.round((countAtOrBelow / sample.length) * 100)));
   return { percentile, sampleSize: sample.length };
+}
+
+/**
+ * 보상금 백분위 사다리의 눈금(100/90/50/10%)에 실제 금액을 함께 보여주기 위한 값 계산.
+ * 같은 직군 내 실제 positions.reward_total 분포에서 각 백분위에 해당하는 실측 금액을 구한다
+ * (nearest-rank 방식 — 보간 없이 정렬된 표본에서 해당 순위의 실제 값을 그대로 사용).
+ */
+export function computeRewardScaleValues(categoryPositions, percentiles = [100, 90, 50, 10]) {
+  const rewards = categoryPositions
+    .map((p) => p.reward_total)
+    .filter((r) => r != null)
+    .sort((a, b) => a - b);
+  if (!rewards.length) return null;
+
+  const n = rewards.length;
+  const valueAtPercentile = (pct) => {
+    const idx = Math.min(n - 1, Math.max(0, Math.round((pct / 100) * (n - 1))));
+    return rewards[idx];
+  };
+
+  return Object.fromEntries(percentiles.map((pct) => [pct, valueAtPercentile(pct)]));
 }
 
 /**
