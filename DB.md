@@ -39,8 +39,9 @@ erDiagram
     APPLICANT_PROFILES ||--o{ WATCHLIST_COMPANIES : saves
     APPLICANT_PROFILES ||--o{ BOOKMARKED_POSITIONS : saves
 
-    TAGS ||--o{ SKILL_TAG_TRENDS : tracked_as
     TAGS ||--o{ CATEGORY_DAILY_SNAPSHOTS : tracked_as
+    TAGS ||--o{ CATEGORY_MARKET_STATS : tracked_as
+    TAGS ||--o{ TAG_EFFECT_STATS : tracked_as
 ```
 
 ## 3. 테이블 정의
@@ -182,43 +183,50 @@ erDiagram
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | snapshot_date | DATE | NOT NULL | |
-| category_tag_id | BIGINT | FK → tags.id | |
-| region | VARCHAR(100) | NULL 허용 | 지역별 집계 시 사용, NULL이면 직군 전체 집계 |
+| category_tag_id | BIGINT | FK → tags.id | `tags.tag_type='category'`(상위 직군)만 사용, subcategory는 집계 대상 아님 |
+| category_name | VARCHAR(100) | NULL 허용 | `tags.name` 비정규화 캐시(조인 없이 바로 표시하기 위한 값) |
+| region | VARCHAR(100) | NULL 허용 | `positions.location` 원문(시도 단위)을 그대로 사용. NULL이면 직군 전체 집계라는 뜻이나, 현재 데모 데이터는 지역별 행만 채워져 있고 NULL(전체) 행은 아직 없음 |
 | open_count | INTEGER | NOT NULL | 해당일 기준 오픈된 공고 수 |
 | new_count | INTEGER | NOT NULL DEFAULT 0 | 신규 등록 |
 | closed_count | INTEGER | NOT NULL DEFAULT 0 | 마감 종료 |
+| is_demo | BOOLEAN | NOT NULL DEFAULT true | 오늘자 실측 앵커(false)와 과거 시점 합성 백필(true) 구분. 9.1절 참고 |
 | UNIQUE | (snapshot_date, category_tag_id, region) | | |
 
 **skill_tag_trend** — 스킬 태그 트렌드 (5.7, 공용 모듈 — 6장)
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| tag_id | BIGINT | FK → tags.id | |
+| skill_name | VARCHAR(100) | NOT NULL | `position_skill_tags.skill_name`과 동일한 이름 기반 키. 스킬은 원티드가 발급한 안정적 `tag_id`가 없어(3.2절 참고) `tags.id` FK 대신 이름 문자열을 그대로 쓴다 |
 | period_type | VARCHAR(10) | CHECK IN ('week','quarter') | |
 | period_start | DATE | NOT NULL | |
-| mention_count | INTEGER | NOT NULL | 해당 기간 공고 내 태그 등장 수 |
+| mention_count | INTEGER | NOT NULL | 해당 기간 `position_skill_tags` 등장 수 |
 | delta_pct_vs_prev | NUMERIC(6,2) | | 이전 기간 대비 증감률(%) |
-| UNIQUE | (tag_id, period_type, period_start) | | |
+| is_demo | BOOLEAN | NOT NULL DEFAULT true | 이번 주(실측 앵커)는 false, 과거 주(합성 백필)는 true. 9.1절 참고 |
+| UNIQUE | (skill_name, period_type, period_start) | | |
 
 **category_market_stats** — 공고 경쟁력 진단용 시장 벤치마크 (5.5)
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| category_tag_id | BIGINT | FK → tags.id | |
+| category_tag_id | BIGINT | FK → tags.id | `tags.tag_type='category'`(상위 직군) |
+| category_name | VARCHAR(100) | NULL 허용 | `tags.name` 비정규화 캐시 |
 | snapshot_date | DATE | NOT NULL | |
 | reward_avg | INTEGER | | |
 | reward_p50 | INTEGER | | |
 | reward_p90 | INTEGER | | |
-| common_attraction_tag_ids | JSONB | | 해당 직군에서 빈출하는 매력 태그 id 배열 |
+| common_attraction_tag_ids | JSONB | | 해당 직군에서 빈출하는 매력 태그 id 배열. 공고 단위 매력 태그 연결 자체가 API에 없어(3.2절 참고) 실제 근거로 채울 수 없으므로, 있는 척 지어내지 않고 현재는 항상 NULL로 비워둔다 |
+| is_demo | BOOLEAN | NOT NULL DEFAULT true | reward_avg/p50/p90은 `positions.reward_total`을 실측 집계한 값이라 현재 데모 데이터는 전부 false(실측). 트렌드가 아닌 단일 스냅샷이라 과거 백필은 없음 |
 | UNIQUE | (category_tag_id, snapshot_date) | | |
 
 **tag_effect_stats** — 매력 태그별 성과 상관관계 (5.5)
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| tag_id | BIGINT | FK → tags.id | |
+| tag_id | BIGINT | FK → tags.id | `tags.tag_type='attraction'` |
+| tag_name | VARCHAR(100) | NULL 허용 | `tags.name` 비정규화 캐시 |
 | snapshot_date | DATE | NOT NULL | |
 | avg_applicants | NUMERIC(6,2) | | 해당 태그 부착 공고의 평균 지원자 수 |
 | avg_pass_rate | NUMERIC(5,2) | | 평균 서류 합격률 |
+| is_demo | BOOLEAN | NOT NULL DEFAULT true | 지원자/합격률 데이터 자체가 없어(3.4절, ATS 키 미보유로 차단) 전부 창작값 — 현재는 항상 true |
 | PRIMARY KEY | (tag_id, snapshot_date) | | |
 
 ### 3.4 ATS / 지원 관리 (채용자, v1 데이터)
@@ -384,9 +392,24 @@ erDiagram
 | `position_additional_apply_types` | ✅ 구현·적재 완료 (1,836건) | |
 | `users` / `applicant_profiles` / `recruiter_profiles` | ⬜ 미구현 | 회원가입/로그인 기능 붙을 때 생성 |
 | `company_insight_snapshots` | ⬜ 미구현 | v1 `/insight/company` 배치 연동 필요 |
-| `category_daily_snapshot` / `skill_tag_trend` / `category_market_stats` / `tag_effect_stats` | ⬜ 미구현 | 시계열 축적이 필요해 배치 스케줄러 구축 후 진행 |
+| `category_daily_snapshot` / `skill_tag_trend` / `category_market_stats` / `tag_effect_stats` | ✅ 구현·적재 완료 (데모 데이터, 각 1,932/336/20/87건) | 9.1절 참고 |
 | `applications` 등 3.4절 ATS 테이블 | ⬜ 미구현 (차단됨) | `X-Wanted-Dashboard-Service-Key` 미보유로 보류 |
 | `position_hiring_goals` / `risk_alerts` / `alert_actions` | ⬜ 미구현 | 위 ATS 데이터 선행 필요 |
 | `applicant_priority_factors` / `watchlist_companies` / `bookmarked_positions` | ⬜ 미구현 | 프론트 기능 구현 시점에 생성 |
 
-RLS: 구현된 7개 테이블 전부 RLS를 켜고 `select`만 공개(anon 허용) 정책을 걸어뒀다 — 프론트엔드(`supabase-js`, anon 키)는 읽기만 가능하고, 쓰기(동기화)는 서버 배치 스크립트 전용으로 남겨둔다. `companies.csv`/`jobs.csv`/`job_details.csv`/`attractions.csv`/`categories.csv` 5개 파일을 `load_full_dataset_to_supabase.py`로 일괄 적재했으며, 적재 중에만 anon 키 쓰기 정책을 임시로 열었다가 완료 후 다시 잠갔다(반복 실행되는 자동 배치는 아직 없고 수동 1회성 적재).
+RLS: 구현된 11개 테이블(원본 동기화 7개 + 자체 집계 데모 4개) 전부 RLS를 켜고 `select`만 공개(anon 허용) 정책을 걸어뒀다 — 프론트엔드(`supabase-js`, anon 키)는 읽기만 가능하고, 쓰기(동기화)는 서버 배치 스크립트 전용으로 남겨둔다. `companies.csv`/`jobs.csv`/`job_details.csv`/`attractions.csv`/`categories.csv` 5개 파일을 `load_full_dataset_to_supabase.py`로 일괄 적재했으며, 적재 중에만 anon 키 쓰기 정책을 임시로 열었다가 완료 후 다시 잠갔다(반복 실행되는 자동 배치는 아직 없고 수동 1회성 적재). 자체 집계 데모 4개 테이블(`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`)은 Supabase 마이그레이션으로 직접 생성·적재했다(9.1절 참고).
+
+### 9.1 자체 배치 집계 4종 — 데모 데이터 (`build_demo_db.py`, Supabase 적재 완료)
+
+`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`는 시계열 축적이 필요해 아직 실제 배치 스케줄러가 없다(6장). 시연을 위해 `build_demo_db.py`가 Supabase(`team7-wanted`)에 이미 적재된 `positions`/`position_tags`/`position_skill_tags`/`tags`를 조회해 먼저 로컬 SQLite 파일(`demo.db`)을 만들고, 그 내용을 `demo_category_daily_snapshot.csv`/`demo_skill_tag_trend.csv`/`demo_category_market_stats.csv`/`demo_tag_effect_stats.csv`로 내보냈다. 이후 이 4개 CSV를 Supabase에도 그대로 적재해 팀원들이 공유 DB에서 바로 조회할 수 있게 했다 — 스키마는 3.3절 정의를 그대로 따르고(비정규화된 `category_name`/`skill_name`/`tag_name` 컬럼과 `is_demo` 플래그 포함), RLS는 다른 7개 테이블과 동일하게 `select`만 공개하는 "public read" 정책을 걸었다(anon 키로는 읽기만 가능).
+
+각 테이블마다 행 단위 `is_demo` 플래그로 "오늘자 실측 앵커"(false)와 "합성/창작값"(true)을 구분한다. 재현 가능하도록 고정 시드(`random.seed(42)`)를 사용한다.
+
+| 테이블 | 건수 | 실측 vs 합성 |
+|---|---|---|
+| `category_daily_snapshot` | 1,932건 | 오늘자(2026-07-14) 카테고리×지역 138건은 `positions`/`position_tags`를 실제 집계한 오픈 공고 수(`is_demo=false`). 과거 13일치(138×13=1,794건)는 오늘 값에서 역산한 랜덤워크 합성값(`is_demo=true`) — 원티드 API가 과거 시점 데이터를 제공하지 않아서 |
+| `skill_tag_trend` | 336건 | 이번 주 42개 스킬(상위 40개 + 하락 스토리용 jQuery/PHP 2개)은 `position_skill_tags` 실측 집계(`is_demo=false`). 과거 7주치(42×7=294건)는 스킬별로 정해진 성장률(상승/하락/보합 시나리오)을 적용한 합성 백필(`is_demo=true`) |
+| `category_market_stats` | 20건 | 카테고리(`tag_type='category'`) 전체 20개, 단일 스냅샷(2026-07-14). `reward_avg`/`p50`/`p90`은 `positions.reward_total`을 실제 집계한 값이라 전부 `is_demo=false`. `common_attraction_tag_ids`는 근거가 없어 전부 NULL |
+| `tag_effect_stats` | 87건 | 매력 태그(`tag_type='attraction'`) 87개 전체, 단일 스냅샷. `avg_applicants`/`avg_pass_rate`는 지원자 데이터 자체가 없어(3.4절 차단) 전부 창작값(`is_demo=true`) — "재택근무"/"스톡옵션" 등 특정 키워드가 포함된 태그는 지원자 수·합격률을 의도적으로 더 높게 만들어 시연용 스토리를 부여했다 |
+
+지금은 위 스냅샷 1회분만 Supabase에 들어가 있고, 이후 반복 실행되는 자동 배치는 없다. 데모 데이터를 실측 데이터로 전환하려면: (1) `category_daily_snapshot`/`skill_tag_trend`는 배치 스케줄러를 구축해 매일/매주 반복 실행하며 `is_demo=true` 과거 행을 실측 스냅샷으로 하나씩 대체해야 하고, (2) `tag_effect_stats`는 `X-Wanted-Dashboard-Service-Key` 확보 후 실제 지원자 데이터가 쌓여야 창작값을 실측값으로 교체할 수 있다.
