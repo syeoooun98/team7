@@ -1,5 +1,5 @@
 // 순수 DOM/SVG 기반 차트 컴포넌트 — 외부 차트 라이브러리 의존 없이
-// 대시보드 전반에서 일관된 시각 언어(막대/라인 차트 스타일, 색상, 빈 상태)를 재사용한다.
+// 대시보드 전반에서 일관된 시각 언어(막대/라인/게이지 스타일, 색상, 빈 상태)를 재사용한다.
 
 export const CATEGORY_COLORS = [
   '#5b8def', '#34c77b', '#f2b134', '#ef4444', '#a78bfa', '#22d3ee',
@@ -92,11 +92,11 @@ function hslCss(h, s, l) {
 }
 
 /**
- * 도넛 랭킹 차트 — 처음엔 이름표만 초라락 펼쳐지고(값은 아직 안 보임), 그 다음 비율이 가장 큰
+ * 도넘 랭킹 차트 — 처음엔 이름표만 촴라락 펼쳐지고(값은 아직 안 보임), 그 다음 비율이 가장 큰
  * 조각(1위, 12시 방향)부터 시계 방향으로 한 칸씩 0.7초간 살짝 커졌다 작아지며 인출선으로 연결된
  * 구체적인 수치·비율을 보여준다. 한 바퀴를 다 돌면 멈추고 이후로는 정적인 상태를 유지하되,
  * 마우스를 조각 위에 올리면 언제든 그 조각의 수치를 다시 볼 수 있다.
- * 각 조각의 윗면은 라벨별 원래 색(단색)을 그대로 쓰고, 입체감은 오직 앞쪽에 보이는 옆면(두께,
+ * 각 조각의 윗면은 라벨별 원래 색(단색)을 그대로 쓰고, 입체감은 오직 앞쪽에 보이는 옷면(두께,
  * 같은 색의 어두운 톤)과 그림자로만 낸다. 카드 우측 상단에는 같은 색으로 매칭한 작은 범례를 띄운다.
  * rows: [{ label, value, colorKey? }] — 이미 정렬/topN 적용된 상태로 넘겨받는다(내림차순 랭킹 순서).
  * options: { valueSuffix, emptyMessage }
@@ -104,7 +104,7 @@ function hslCss(h, s, l) {
 export function renderDonutRanking(container, rows, options = {}) {
   const { valueSuffix = '건', emptyMessage = '표시할 데이터가 없습니다.' } = options;
 
-  // 탭 재방문 등으로 다시 렌더링될 때 이전 사이클의 타이머가 계속 누적되지 않도록 먼저 멈추다.
+  // 탭 재방문 등으로 다시 렌더링될 때 이전 사이클의 타이머가 계속 누적되지 않도록 먼저 멈춰야 한다.
   if (container._donutStop) {
     container._donutStop();
     container._donutStop = null;
@@ -128,11 +128,11 @@ export function renderDonutRanking(container, rows, options = {}) {
   const cy = 112;
   const rOuter = 92;
   const rInner = 58;
-  const RATIO = 0.55; // 위에서 살짝 내려다보는 느낌을 주는 타원 눈림 비율
-  const DEPTH = 15; // 옆면(두께) 높이
+  const RATIO = 0.55; // 위에서 살짝 내려다보는 느낌을 주는 타원 누림 비율
+  const DEPTH = 15; // 옷면(두께) 높이
   const gapDeg = rows.length > 1 ? 1.6 : 0;
 
-  // 타원 굤도 위의 좌표 — 원 대신 눈린 타원을 쓰여 "위에서 내려다본" 입체 느낌을 만든다.
+  // 타원 굤도 위의 좌표 — 원 대신 누린 타원을 쓰사 "위에서 내려다본" 입체 느낌을 만든다.
   const ellipsePoint = (r, angleDeg) => {
     const rad = ((angleDeg - 90) * Math.PI) / 180;
     return { x: cx + r * Math.cos(rad), y: cy + r * RATIO * Math.sin(rad) };
@@ -153,7 +153,7 @@ export function renderDonutRanking(container, rows, options = {}) {
     ].join(' ');
   };
 
-  // 도넛 앞쪽(아래 절반, 90°~270°)에서만 옆면 두께가 눈에 보인다 — 뒤쪽은 윗면에 가려지므로 생략한다.
+  // 도넘 앞쪽(아래 절반, 90°~270°)에서만 옷면 두께가 눈에 보인다 — 뒤쪽은 윗면에 가려지므로 생략한다.
   const FRONT_START = 90;
   const FRONT_END = 270;
   const clipToFront = (startAngle, endAngle) => {
@@ -193,7 +193,7 @@ export function renderDonutRanking(container, rows, options = {}) {
       midAngle: (startAngle + endAngle) / 2,
       baseColor,
       color: baseColor, // 윗면은 순위와 무관하게 원래 색 그대로(단색)
-      wallColor: hslCss(h, s, Math.max(10, l - 26)), // 옆면만 같은 색의 어두운 톤으로 입체감을 준다
+      wallColor: hslCss(h, s, Math.max(10, l - 26)), // 옷면만 같은 색의 어두운 톤으로 입체감을 준다
       pct: total > 0 ? ((row.value / total) * 100).toFixed(1) : '0.0',
     };
   });
@@ -228,7 +228,7 @@ export function renderDonutRanking(container, rows, options = {}) {
     const d = topFacePath(seg.startAngle, seg.endAngle);
     seg.elements = [];
 
-    // 앞쪽(아래 절반)에 걸치는 조각만 옆면(두께)을 그린다 — 실제 케이크를 자른 단면처럼 보이게 한다.
+    // 앞쪽(아래 절반)에 걸치는 조각만 옷면(두께)을 그린다 — 실제 케이크를 자른 단면처럼 보이게 한다.
     const frontRange = clipToFront(seg.startAngle, seg.endAngle);
     if (frontRange) {
       const wall = document.createElementNS(NS, 'path');
@@ -252,8 +252,9 @@ export function renderDonutRanking(container, rows, options = {}) {
     seg.elements.push(path);
 
     const labelPos = ellipsePoint(rOuter + 16, seg.midAngle);
-    const normalizedMid = ((seg.midAngle % 360) + 360) % 360;
-    const anchor = normalizedMid > 90 && normalizedMid < 270 ? 'end' : 'start';
+    // 도넘 중심(cx) 기준 좌/우로 글자가 각각 좌/우로 믻어나가야 차트·수치와 격치지 않는다.
+    // (위/아래 각도가 아니라 실제 x 좌표로 좌우를 판정한다.)
+    const anchor = Math.abs(labelPos.x - cx) < 2 ? 'middle' : labelPos.x > cx ? 'start' : 'end';
     const label = document.createElementNS(NS, 'text');
     label.setAttribute('x', labelPos.x.toFixed(2));
     label.setAttribute('y', labelPos.y.toFixed(2));
@@ -264,7 +265,7 @@ export function renderDonutRanking(container, rows, options = {}) {
     label.addEventListener('animationend', () => label.classList.remove('donut-label--reveal'), { once: true });
     labelGroup.appendChild(label);
 
-    // 자동 사이클이 끝나 정적인 상태가 된 뒤에도, 마우스를 올리면 언제든 수치를 볼 수 있게 한다.
+    // 자동 사이클이 끝나 정적인 상태가 된 뒤에도, 마우스를 올리면 언제든 수치를 다시 볼 수 있게 한다.
     path.style.cursor = 'pointer';
     path.addEventListener('pointerenter', () => pulse(seg));
     path.addEventListener('pointerleave', () => {
@@ -276,8 +277,8 @@ export function renderDonutRanking(container, rows, options = {}) {
   function showCallout(seg) {
     const lineStart = ellipsePoint(rOuter + 4, seg.midAngle);
     const lineEnd = ellipsePoint(rOuter + 30, seg.midAngle);
-    const normalizedMid = ((seg.midAngle % 360) + 360) % 360;
-    const anchor = normalizedMid > 90 && normalizedMid < 270 ? 'end' : 'start';
+    // 라벨과 동일하게 중심 기준 좌/우 실제 위치로 인출선 글자 방향을 정한다.
+    const anchor = Math.abs(lineEnd.x - cx) < 2 ? 'middle' : lineEnd.x > cx ? 'start' : 'end';
 
     calloutLine.setAttribute('x1', lineStart.x.toFixed(2));
     calloutLine.setAttribute('y1', lineStart.y.toFixed(2));
@@ -338,7 +339,7 @@ export function renderDonutRanking(container, rows, options = {}) {
     if (timerId) clearTimeout(timerId);
   };
 
-  // 범례 — 카드 우측 상단에 작게, 랭킹 순서(진한 색 → 옅은 색)와 같은 순서로 표시한다.
+  // 범례 — 카드 우측 상단에 작게, 랭킹 순서(진한 색 → 옷은 색)와 같은 순서로 표시한다.
   if (card) {
     const legend = document.createElement('div');
     legend.className = 'donut-legend';
@@ -411,12 +412,14 @@ function formatShortDate(dateStr) {
 /**
  * 세로형 랭킹 사다리 — "위로 갈수록 좋다"는 의미를 직관적으로 전달한다.
  * 트랙 배경은 0~80% 구간은 완만하게(회색→파랑→초록), 80~100% 구간은 급격하게(초록→금색→주황→빨간)
- * 변하는 비선형 그라디언트를 쓰서, 상위로 갈수록(예: 상위 0.001%에 가까워질수록) 훨씬 더 특별하다는
+ * 변하는 비선형 그라디언트를 쓰자네서(계안으로는 상위일수록(예: 상위 0.001%에 가까워질수록) 훨씬 더 특별하다는
  * 느낌을 색으로 압축해 보여준다. 마커 위치 자체는 실제 백분위를 선형으로 정확히 표시한다.
  * percentile: 0~100 사이 값(높을수록 상위)
+ * markerValue: 마커 옷에 바로 붙여서 보여줄 구체적인 금액 등의 텍스트(예: "5,200만원")
+ * scaleValues: { 100, 90, 50, 10 } 각 눈금에 옷게 함께 보여줄 실제 금액 문자열(예: "1억원") — 없으면 % 눈금만 표시
  */
 export function renderRankLadder(container, percentile, options = {}) {
-  const { sublabel = '' } = options;
+  const { sublabel = '', markerValue = '', scaleValues = null } = options;
   container.innerHTML = '';
 
   if (percentile == null) {
@@ -436,18 +439,25 @@ export function renderRankLadder(container, percentile, options = {}) {
       ? { label: '평균 이상', className: 'rank-tier--mid' }
       : { label: '평균 이하', className: 'rank-tier--low' };
 
+  const scaleTickHTML = (pct) => `
+    <span class="rank-ladder__scale-item">
+      <span class="rank-ladder__scale-pct">${pct}%</span>
+      ${scaleValues && scaleValues[pct] != null ? `<span class="rank-ladder__scale-value">${scaleValues[pct]}</span>` : ''}
+    </span>
+  `;
+
   const el = document.createElement('div');
   el.className = 'rank-ladder';
   el.innerHTML = `
     <div class="rank-ladder__scale">
-      <span>100%</span>
-      <span>90%</span>
-      <span>50%</span>
-      <span>0%</span>
+      ${scaleTickHTML(100)}
+      ${scaleTickHTML(90)}
+      ${scaleTickHTML(50)}
+      ${scaleTickHTML(10)}
     </div>
     <div class="rank-ladder__track">
       <div class="rank-ladder__marker" style="top:${markerFromTop}%">
-        <span class="rank-ladder__marker-label">${clamped}%</span>
+        <span class="rank-ladder__marker-label">${clamped}%${markerValue ? ` · ${markerValue}` : ''}</span>
       </div>
     </div>
     <div class="rank-ladder__readout">
