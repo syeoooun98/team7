@@ -1,5 +1,12 @@
+import { supabase } from './config.js';
 import { fetchAllRaw, fetchCompanyTagsByCompanyId, subscribeRealtime } from './api.js';
 import { buildModel } from './model.js';
+import {
+  getCurrentApplicantProfileId,
+  fetchBookmarkedPositionIds,
+  toggleBookmark,
+  subscribeBookmarkChanges,
+} from './bookmarks.js';
 import {
   computeCategoryDistribution,
   computeRegionDistribution,
@@ -60,6 +67,8 @@ const state = {
   searchVisibleCount: 24,
   roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
   diagnosis: { companyId: null, positionId: null, companyTags: [] },
+  applicantProfileId: null,
+  bookmarkedPositionIds: new Set(),
 };
 
 const URGENT_WITHIN_DAYS = 7;
@@ -103,11 +112,23 @@ function showToast(message) {
 /* 공고 카드 렌더링 (여러 탭에서 공용)                                       */
 /* ------------------------------------------------------------------ */
 
+function isPositionBookmarked(positionId) {
+  return state.bookmarkedPositionIds.has(positionId);
+}
+
 function positionCardHTML(p, opts = {}) {
   const badge = ddayBadge(p.daysLeft);
   const initial = (p.company.name || '?').charAt(0);
   const avatarColor = colorForKey(p.company.name);
   const logoUrl = p.company.logo_url;
+  const bookmarked = !!opts.isBookmarked;
+  const bookmarkBtnHTML = `
+    <button type="button" class="bookmark-btn ${bookmarked ? 'bookmark-btn--active' : ''}"
+      data-position-id="${p.id}" aria-pressed="${bookmarked}"
+      aria-label="${bookmarked ? '북마크 해제' : '북마크 추가'}" title="${bookmarked ? '북마크 해제' : '북마크 추가'}">
+      <span aria-hidden="true">${bookmarked ? '★' : '☆'}</span>
+    </button>
+  `;
 
   const tagNames = [p.category.name, ...p.subTags.map((t) => t.name)].filter(Boolean).slice(0, 3);
   const tagsHTML = tagNames
@@ -149,7 +170,10 @@ function positionCardHTML(p, opts = {}) {
       <div class="position-card__meta">
         <span title="지역(구/시 단위는 주소 텍스트 기반 근사치)">📍 ${escapeHTML(p.district)} · ${escapeHTML(p.location || '-')}</span>
         <span>💰 ${formatWon(p.reward_total)}</span>
-        <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+        <span class="meta-dday-row">
+          <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+          ${bookmarkBtnHTML}
+        </span>
       </div>
       <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
     </article>
@@ -269,12 +293,12 @@ function renderHome() {
 
   const recommend = recommendPositions(positions, { limit: 6 });
   $('#recommend-list').innerHTML = recommend.length
-    ? recommend.map((p) => positionCardHTML(p)).join('')
+    ? recommend.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">추천할 공고가 없습니다.</div>';
 
   const urgent = getUrgentPositions(positions).slice(0, 6);
   $('#urgent-list').innerHTML = urgent.length
-    ? urgent.map((p) => positionCardHTML(p)).join('')
+    ? urgent.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">최근 7일 이내 마감되는 공고가 없습니다.</div>';
 }
 
@@ -444,7 +468,7 @@ function renderRoadmapOutput() {
     topPositionsContainer.innerHTML = '<div class="empty-state">보유 스킬을 선택하면 매칭되는 공고가 표시됩니다.</div>';
   } else {
     topPositionsContainer.innerHTML = roadmap.topPositions
-      .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched }))
+      .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched, isBookmarked: isPositionBookmarked(x.position.id) }))
       .join('');
   }
 }
@@ -762,7 +786,7 @@ function renderSearchResults() {
   const visible = filtered.slice(0, state.searchVisibleCount);
   const remaining = filtered.length - visible.length;
 
-  grid.innerHTML = visible.map((p) => positionCardHTML(p)).join('');
+  grid.innerHTML = visible.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('');
 
   if (remaining > 0) {
     const loadMoreWrap = document.createElement('div');
@@ -1002,6 +1026,101 @@ async function loadData() {
   state.companyCount = state.model.companiesById.size;
 }
 
+/* 현재 로그인한 지원자의 북마크 Set을 가져온다. 로그인 안 되어 있거나
+   지원자 프로필이 없으면(채용자 계정 등) 빈 Set으로 처리하고 조용히 넘어간다
+   (카드 렌더링 자체를 막을 이유는 없으므로 에러를 던지지 않는다). */
+async function loadBookmarkState() {
+  try {
+    const applicantProfileId = await getCurrentApplicantProfileId();
+    state.applicantProfileId = applicantProfileId;
+    state.bookmarkedPositionIds = applicantProfileId
+      ? await fetchBookmarkedPositionIds(applicantProfileId)
+      : new Set();
+  } catch (err) {
+    console.error('북마크 상태 로드 실패', err);
+    state.bookmarkedPositionIds = new Set();
+  }
+}
+
+/* --------------------------------------------------------------- */
+/* 북마크 실시간 동기화 (bookmarked_positions Realtime 구독)              */
+/* mypage.html(맞춤 재정렬 탭)에서 북마크를 해제/추가해도 이 화면에 렌더링된   */
+/* .bookmark-btn 별표가 실시간으로 맞춰지도록 한다.                        */
+/* --------------------------------------------------------------- */
+
+let unsubscribeBookmarkRealtime = null;
+
+/** 화면에 이미 렌더링된 모든 .bookmark-btn을 state.bookmarkedPositionIds 기준으로 동기화한다.
+ *  같은 공고 카드가 여러 탭/영역(추천/마감임박/검색결과/로드맵 등)에 중복 렌더링될 수 있어
+ *  querySelectorAll로 전부 갱신한다. */
+function syncAllBookmarkButtonsDOM() {
+  $$('.bookmark-btn').forEach((btn) => {
+    const positionId = Number(btn.dataset.positionId);
+    if (!positionId) return;
+    const bookmarked = isPositionBookmarked(positionId);
+    btn.classList.toggle('bookmark-btn--active', bookmarked);
+    btn.setAttribute('aria-pressed', String(bookmarked));
+    btn.title = bookmarked ? '북마크 해제' : '북마크 추가';
+    btn.setAttribute('aria-label', bookmarked ? '북마크 해제' : '북마크 추가');
+    const icon = btn.querySelector('span');
+    if (icon) icon.textContent = bookmarked ? '★' : '☆';
+  });
+}
+
+/** bookmarked_positions에 대한 postgres_changes 이벤트 처리 (INSERT/DELETE) */
+function handleBookmarkRealtimeChange(payload) {
+  const positionId =
+    payload.eventType === 'DELETE' ? payload.old?.position_id : payload.new?.position_id;
+  if (positionId == null) return;
+
+  if (payload.eventType === 'INSERT') {
+    state.bookmarkedPositionIds.add(positionId);
+  } else if (payload.eventType === 'DELETE') {
+    state.bookmarkedPositionIds.delete(positionId);
+  }
+  syncAllBookmarkButtonsDOM();
+}
+
+/** state.applicantProfileId 기준으로 북마크 실시간 구독을 다시 건다(기존 구독은 먼저 해제). */
+function refreshBookmarkRealtimeSubscription() {
+  if (unsubscribeBookmarkRealtime) {
+    unsubscribeBookmarkRealtime();
+    unsubscribeBookmarkRealtime = null;
+  }
+  if (state.applicantProfileId) {
+    unsubscribeBookmarkRealtime = subscribeBookmarkChanges(
+      state.applicantProfileId,
+      handleBookmarkRealtimeChange
+    );
+  }
+}
+
+/* --------------------------------------------------------------- */
+/* 로그인 상태 실시간 동기화 (supabase.auth.onAuthStateChange)            */
+/* 헤더 로그인 모달·mypage.html iframe 등 다른 컨텍스트에서 로그인/로그아웃해도  */
+/* supabase-js v2의 멀티탭 세션 동기화(localStorage 감지)로 이 이벤트가 온다.  */
+/* --------------------------------------------------------------- */
+
+let lastKnownAuthUserId; // undefined = 아직 파악 전, null = 비로그인
+
+async function handleAuthChangeForBookmarks(session) {
+  const userId = session?.user?.id || null;
+  if (userId === lastKnownAuthUserId) return; // 실제 로그인 사용자 변화가 없으면(토큰 갱신 등) 무시
+  lastKnownAuthUserId = userId;
+
+  await loadBookmarkState();
+  syncAllBookmarkButtonsDOM();
+  refreshBookmarkRealtimeSubscription();
+}
+
+function setupAuthListener() {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    handleAuthChangeForBookmarks(session).catch((err) => {
+      console.error('[app] 로그인 상태 변경 처리 실패', err);
+    });
+  });
+}
+
 function renderAll() {
   renderHome();
   initRoadmapDefaults();
@@ -1015,10 +1134,16 @@ async function init() {
   setLoading(true);
   setError(null);
   try {
-    await loadData();
+    await Promise.all([loadData(), loadBookmarkState()]);
     setLoading(false);
     renderAll();
     $('#last-updated').textContent = `마지막 갱신: ${new Date().toLocaleTimeString('ko-KR')}`;
+
+    // onAuthStateChange 리스너가 "실제 변화"만 처리하도록 초기 로그인 사용자를 기록해둔다
+    // (등록 시점에 오는 INITIAL_SESSION 이벤트로 loadBookmarkState()가 중복 실행되는 것을 방지).
+    const { data: sessionData } = await supabase.auth.getSession();
+    lastKnownAuthUserId = sessionData?.session?.user?.id || null;
+    refreshBookmarkRealtimeSubscription();
   } catch (err) {
     console.error(err);
     setLoading(false);
@@ -1041,8 +1166,58 @@ function setupNav() {
     const jumpEl = e.target.closest('[data-jump-mode-tab]');
     if (jumpEl) {
       jumpModeTab(jumpEl.dataset.jumpModeTab);
+      return;
+    }
+    const bookmarkBtn = e.target.closest('.bookmark-btn');
+    if (bookmarkBtn) {
+      handleBookmarkButtonClick(bookmarkBtn);
     }
   });
+}
+
+/* 공고 카드의 북마크 버튼 클릭 처리 (이벤트 위임으로 등록되어 카드가 몇 개든 리스너는 하나) */
+async function handleBookmarkButtonClick(btn) {
+  const positionId = Number(btn.dataset.positionId);
+  if (!positionId) return;
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.error(sessionError);
+    showToast('로그인 상태를 확인하지 못했습니다.');
+    return;
+  }
+  if (!sessionData.session) {
+    showToast('로그인이 필요합니다.');
+    $('#login-toggle-btn')?.click();
+    return;
+  }
+
+  const applicantProfileId = await getCurrentApplicantProfileId();
+  if (!applicantProfileId) {
+    showToast('지원자 계정만 북마크할 수 있습니다.');
+    return;
+  }
+
+  const currentlyBookmarked = btn.classList.contains('bookmark-btn--active');
+  btn.disabled = true;
+  try {
+    const nowBookmarked = await toggleBookmark(applicantProfileId, positionId, currentlyBookmarked);
+    state.applicantProfileId = applicantProfileId;
+    if (nowBookmarked) state.bookmarkedPositionIds.add(positionId);
+    else state.bookmarkedPositionIds.delete(positionId);
+
+    btn.classList.toggle('bookmark-btn--active', nowBookmarked);
+    btn.setAttribute('aria-pressed', String(nowBookmarked));
+    btn.title = nowBookmarked ? '북마크 해제' : '북마크 추가';
+    btn.setAttribute('aria-label', nowBookmarked ? '북마크 해제' : '북마크 추가');
+    const icon = btn.querySelector('span');
+    if (icon) icon.textContent = nowBookmarked ? '★' : '☆';
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || '북마크 처리 중 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function setupRealtime() {
@@ -1079,5 +1254,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNav();
   setupRetry();
   setupStaticListenersOnce();
+  setupAuthListener();
   init().then(setupRealtime);
 });
