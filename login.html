@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wanted 대시보드 - 로그인</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+/* index.html / css/styles.css의 다크 테마 디자인 토큰(변수)만 재사용하고, 새 색상은 하드코딩하지 않는다. */
+:root{
+  --bg: var(--color-bg); --card: var(--color-surface); --text: var(--color-text);
+  --muted: var(--color-text-muted); --border: var(--color-border);
+  --primary: var(--color-primary); --primary-dark: var(--color-primary-dark); --primary-light: var(--color-primary-light);
+  --danger: var(--color-danger); --danger-bg: var(--color-danger-light); --danger-border: var(--color-danger-light);
+  --good: var(--color-accent); --good-bg: var(--color-accent-light); --good-border: var(--color-accent-light);
+  --radius: var(--radius-lg);
+  --shadow: var(--shadow-sm);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--text); min-height:100vh;
+  font-family: var(--font-family);
+  font-size:14px; line-height:1.5;
+  display:flex; align-items:center; justify-content:center; padding:32px 16px;
+}
+.wrap{width:100%; max-width:420px;}
+.brand{text-align:center; margin-bottom:20px;}
+.brand h1{font-size:20px; font-weight:800; color:var(--primary-dark); margin:0 0 4px;}
+.brand p{font-size:12.5px; color:var(--muted); margin:0;}
+
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:24px 24px 20px; box-shadow:var(--shadow);
+}
+
+.tabs{display:flex; gap:6px; margin-bottom:18px; background:var(--color-surface-alt); border-radius:999px; padding:4px;}
+.tab-btn{
+  flex:1; padding:9px 0; border-radius:999px; border:none; background:transparent;
+  color:var(--muted); font-weight:700; font-size:13px; cursor:pointer; transition:.15s;
+}
+.tab-btn.active{background:var(--card); color:var(--primary-dark); box-shadow:var(--shadow);}
+
+.view{display:none;}
+.view.active{display:block;}
+
+h2{font-size:16px; margin:0 0 14px;}
+
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:12.3px; font-weight:700; margin-bottom:5px; color:var(--text);}
+.field input[type=email], .field input[type=password]{
+  width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border);
+  font-size:13.5px; background:var(--color-surface-alt); color:var(--text);
+}
+.field input:focus{outline:2px solid var(--primary-light); border-color:var(--primary);}
+
+.role-options{display:flex; gap:10px;}
+.role-option{
+  flex:1; border:1px solid var(--border); border-radius:10px; padding:10px 12px;
+  display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600;
+}
+.role-option:has(input:checked){border-color:var(--primary); background:var(--primary-light); color:var(--primary-dark);}
+.role-option input{margin:0;}
+
+.checkbox-row{display:flex; align-items:flex-start; gap:8px; font-size:12.3px; color:var(--muted); margin-bottom:16px;}
+.checkbox-row input{margin-top:2px;}
+
+.btn{
+  width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff;
+  font-weight:700; font-size:13.5px; cursor:pointer;
+}
+.btn:hover{background:var(--primary-dark);}
+.btn:disabled{opacity:.55; cursor:not-allowed;}
+.btn.ghost{background:var(--card); color:var(--danger); border-color:var(--danger-border);}
+.btn.ghost:hover{background:var(--danger-bg);}
+
+.msg{
+  font-size:12.3px; padding:9px 11px; border-radius:8px; margin-bottom:14px; display:none; line-height:1.5;
+}
+.msg.error{display:block; background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger-border);}
+.msg.info{display:block; background:var(--good-bg); color:var(--good); border:1px solid var(--good-border);}
+
+.loading-box{text-align:center; padding:30px 0; color:var(--muted); font-size:13px;}
+
+.session-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;}
+.session-row:last-of-type{border-bottom:none;}
+.session-row .label{color:var(--muted);}
+.session-row .value{font-weight:700;}
+
+.role-pill{
+  display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px;
+  background:var(--primary-light); color:var(--primary-dark);
+}
+
+.hint{font-size:11.6px; color:var(--muted); margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand">
+    <h1>Wanted 통합 채용 대시보드</h1>
+    <p>Supabase Auth 연동 로그인 / 회원가입</p>
+  </div>
+
+  <div class="card">
+
+    <!-- 로딩 화면 -->
+    <div id="view-loading" class="view active">
+      <div class="loading-box">세션 확인 중...</div>
+    </div>
+
+    <!-- 로그인/회원가입 -->
+    <div id="view-auth" class="view">
+      <div class="tabs">
+        <button type="button" class="tab-btn active" id="tab-login-btn">로그인</button>
+        <button type="button" class="tab-btn" id="tab-signup-btn">회원가입</button>
+      </div>
+
+      <!-- 로그인 폼 -->
+      <div id="pane-login">
+        <h2>로그인</h2>
+        <div id="login-error" class="msg error" style="display:none;"></div>
+        <form id="login-form">
+          <div class="field">
+            <label for="login-email">이메일</label>
+            <input type="email" id="login-email" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="login-password">비밀번호</label>
+            <input type="password" id="login-password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn" id="login-submit-btn">로그인</button>
+        </form>
+      </div>
+
+      <!-- 회원가입 폼 -->
+      <div id="pane-signup" style="display:none;">
+        <h2>회원가입</h2>
+        <div id="signup-error" class="msg error" style="display:none;"></div>
+        <div id="signup-info" class="msg info" style="display:none;"></div>
+        <form id="signup-form">
+          <div class="field">
+            <label for="signup-email">이메일</label>
+            <input type="email" id="signup-email" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="signup-password">비밀번호</label>
+            <input type="password" id="signup-password" autocomplete="new-password" minlength="6" required>
+            <div class="hint">6자 이상 입력해주세요.</div>
+          </div>
+          <div class="field">
+            <label>역할 선택</label>
+            <div class="role-options">
+              <label class="role-option">
+                <input type="radio" name="signup-role" value="applicant" checked>
+                지원자
+              </label>
+              <label class="role-option">
+                <input type="radio" name="signup-role" value="recruiter">
+                채용자
+              </label>
+            </div>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" id="signup-create-sub" checked>
+            <span>선택한 역할에 맞는 프로필(지원자/채용자 프로필)도 함께 생성합니다.</span>
+          </label>
+          <button type="submit" class="btn" id="signup-submit-btn">회원가입</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 로그인 직후, profiles 행이 아직 없을 때 역할 설정 화면 -->
+    <div id="view-profile-setup" class="view">
+      <h2>역할 설정</h2>
+      <p class="hint" style="margin-bottom:14px;">
+        <span id="profile-setup-email"></span> 계정에 아직 역할(지원자/채용자)이 설정되어 있지 않습니다. 아래에서 선택해주세요.
+      </p>
+      <div id="profile-setup-error" class="msg error" style="display:none;"></div>
+      <form id="profile-setup-form">
+        <div class="field">
+          <label>역할 선택</label>
+          <div class="role-options">
+            <label class="role-option">
+              <input type="radio" name="setup-role" value="applicant" checked>
+              지원자
+            </label>
+            <label class="role-option">
+              <input type="radio" name="setup-role" value="recruiter">
+              채용자
+            </label>
+          </div>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="setup-create-sub" checked>
+          <span>선택한 역할에 맞는 프로필(지원자/채용자 프로필)도 함께 생성합니다.</span>
+        </label>
+        <button type="submit" class="btn" id="profile-setup-submit-btn">역할 저장</button>
+      </form>
+    </div>
+
+    <!-- 로그인된 화면 -->
+    <div id="view-loggedin" class="view">
+      <h2>로그인됨</h2>
+      <div class="session-row">
+        <span class="label">이메일</span>
+        <span class="value" id="loggedin-email"></span>
+      </div>
+      <div class="session-row">
+        <span class="label">역할</span>
+        <span class="value"><span class="role-pill" id="loggedin-role"></span></span>
+      </div>
+      <div style="margin-top:18px;">
+        <button type="button" class="btn ghost" id="logout-btn">로그아웃</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  if (!window.SUPABASE_CONFIG || !window.SUPABASE_CONFIG.url || !window.SUPABASE_CONFIG.publishableKey) {
+    document.getElementById("view-loading").innerHTML =
+      '<div class="loading-box" style="color:#e53e3e;">supabase-config.js 설정이 없습니다.</div>';
+    return;
+  }
+
+  var sb = window.supabase.createClient(
+    window.SUPABASE_CONFIG.url,
+    window.SUPABASE_CONFIG.publishableKey
+  );
+
+  var views = {
+    loading: document.getElementById("view-loading"),
+    auth: document.getElementById("view-auth"),
+    profileSetup: document.getElementById("view-profile-setup"),
+    loggedin: document.getElementById("view-loggedin")
+  };
+
+  function showView(name) {
+    Object.keys(views).forEach(function (k) {
+      views[k].classList.toggle("active", k === name);
+    });
+  }
+
+  function setMsg(el, text) {
+    if (text) {
+      el.textContent = text;
+      el.style.display = "block";
+    } else {
+      el.textContent = "";
+      el.style.display = "none";
+    }
+  }
+
+  // ---- 에러 메시지 한글화 ----
+  function translateAuthError(err) {
+    var msg = (err && err.message) ? err.message : String(err);
+    var map = {
+      "Invalid login credentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+      "User already registered": "이미 가입된 이메일입니다.",
+      "Email not confirmed": "이메일 인증이 완료되지 않았습니다. 받은 편지함을 확인해주세요.",
+      "Password should be at least 6 characters": "비밀번호는 6자 이상이어야 합니다."
+    };
+    for (var key in map) {
+      if (msg.indexOf(key) !== -1) return map[key];
+    }
+    return msg || "알 수 없는 오류가 발생했습니다.";
+  }
+
+  // ---- 탭 전환 (로그인 / 회원가입) ----
+  var tabLoginBtn = document.getElementById("tab-login-btn");
+  var tabSignupBtn = document.getElementById("tab-signup-btn");
+  var paneLogin = document.getElementById("pane-login");
+  var paneSignup = document.getElementById("pane-signup");
+
+  tabLoginBtn.addEventListener("click", function () {
+    tabLoginBtn.classList.add("active");
+    tabSignupBtn.classList.remove("active");
+    paneLogin.style.display = "block";
+    paneSignup.style.display = "none";
+  });
+  tabSignupBtn.addEventListener("click", function () {
+    tabSignupBtn.classList.add("active");
+    tabLoginBtn.classList.remove("active");
+    paneSignup.style.display = "block";
+    paneLogin.style.display = "none";
+  });
+
+  // ---- 역할별 프로필 생성 ----
+  function roleLabel(role) {
+    if (role === "applicant") return "지원자";
+    if (role === "recruiter") return "채용자";
+    return "미설정";
+  }
+
+  function createProfileRows(userId, role, createSub) {
+    return sb.from("profiles").insert({ id: userId, role: role }).then(function (res) {
+      if (res.error) throw res.error;
+      if (!createSub) return null;
+      if (role === "applicant") {
+        return sb.from("applicant_profiles").insert({ user_id: userId }).then(function (res2) {
+          if (res2.error) throw res2.error;
+        });
+      }
+      if (role === "recruiter") {
+        return sb.from("recruiter_profiles").insert({ user_id: userId }).then(function (res2) {
+          if (res2.error) throw res2.error;
+        });
+      }
+    });
+  }
+
+  // ---- 로그인 후 profiles 조회해서 화면 분기 ----
+  function handleAuthenticated(user) {
+    return sb.from("profiles").select("role").eq("id", user.id).maybeSingle().then(function (res) {
+      if (res.error) throw res.error;
+      if (res.data && res.data.role) {
+        renderLoggedIn(user, res.data.role);
+      } else {
+        renderProfileSetup(user);
+      }
+    });
+  }
+
+  // 허용된 리다이렉트 대상만 화이트리스트로 받는다(임의 URL 오픈 리다이렉트 방지).
+  var ALLOWED_REDIRECTS = ["mypage.html"];
+  var redirectParam = new URLSearchParams(window.location.search).get("redirect");
+  var redirectTarget = ALLOWED_REDIRECTS.indexOf(redirectParam) !== -1 ? redirectParam : null;
+
+  function renderLoggedIn(user, role) {
+    // redirectTarget으로 이동하는 경우에도(맞춤재정렬 탭 등에서 온 로그인 플로우 등) 항상
+    // postMessage를 먼저 보낸다 — 리다이렉트 여부와 무관하게 부모(index.html 헤더)가
+    // 로그인 사실을 알아야 모달을 닫고 버튼 라벨을 갱신할 수 있다.
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "wanted-auth-login", email: user.email, role: role }, "*");
+    }
+    if (redirectTarget) {
+      window.location.replace(redirectTarget);
+      return;
+    }
+    document.getElementById("loggedin-email").textContent = user.email;
+    document.getElementById("loggedin-role").textContent = roleLabel(role);
+    showView("loggedin");
+  }
+
+  function renderProfileSetup(user) {
+    document.getElementById("profile-setup-email").textContent = user.email;
+    setMsg(document.getElementById("profile-setup-error"), "");
+    showView("profileSetup");
+    renderProfileSetup._user = user;
+  }
+
+  // ---- 초기 세션 확인 ----
+  function init() {
+    showView("loading");
+    sb.auth.getSession().then(function (res) {
+      if (res.error) {
+        setMsg(document.getElementById("login-error"), translateAuthError(res.error));
+        showView("auth");
+        return;
+      }
+      if (res.data.session && res.data.session.user) {
+        return handleAuthenticated(res.data.session.user);
+      }
+      showView("auth");
+    }).catch(function (err) {
+      setMsg(document.getElementById("login-error"), translateAuthError(err));
+      showView("auth");
+    });
+  }
+
+  // ---- 로그인 폼 ----
+  var loginForm = document.getElementById("login-form");
+  var loginErrorEl = document.getElementById("login-error");
+  var loginSubmitBtn = document.getElementById("login-submit-btn");
+
+  loginForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    setMsg(loginErrorEl, "");
+    var email = document.getElementById("login-email").value.trim();
+    var password = document.getElementById("login-password").value;
+
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = "로그인 중...";
+
+    sb.auth.signInWithPassword({ email: email, password: password }).then(function (res) {
+      if (res.error) throw res.error;
+      return handleAuthenticated(res.data.user);
+    }).catch(function (err) {
+      setMsg(loginErrorEl, translateAuthError(err));
+    }).then(function () {
+      loginSubmitBtn.disabled = false;
+      loginSubmitBtn.textContent = "로그인";
+    });
+  });
+
+  // ---- 회원가입 폼 ----
+  var signupForm = document.getElementById("signup-form");
+  var signupErrorEl = document.getElementById("signup-error");
+  var signupInfoEl = document.getElementById("signup-info");
+  var signupSubmitBtn = document.getElementById("signup-submit-btn");
+
+  signupForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    setMsg(signupErrorEl, "");
+    setMsg(signupInfoEl, "");
+
+    var email = document.getElementById("signup-email").value.trim();
+    var password = document.getElementById("signup-password").value;
+    var roleInput = signupForm.querySelector('input[name="signup-role"]:checked');
+    var role = roleInput ? roleInput.value : null;
+    var createSub = document.getElementById("signup-create-sub").checked;
+
+    if (!role) {
+      setMsg(signupErrorEl, "역할을 선택해주세요.");
+      return;
+    }
+
+    signupSubmitBtn.disabled = true;
+    signupSubmitBtn.textContent = "가입 처리 중...";
+
+    sb.auth.signUp({ email: email, password: password }).then(function (res) {
+      if (res.error) throw res.error;
+      var user = res.data.user;
+      var session = res.data.session;
+
+      if (session && user) {
+        // 이메일 확인 없이 바로 세션이 발급된 경우: 즉시 프로필 생성
+        return createProfileRows(user.id, role, createSub).then(function () {
+          return handleAuthenticated(user);
+        });
+      } else {
+        // 이메일 확인이 필요한 경우: 세션이 없어 RLS상 지금은 insert 불가.
+        // 이메일 인증 후 로그인하면 "역할 설정" 화면에서 마저 생성한다.
+        setMsg(signupInfoEl, "가입 확인 이메일을 보냈습니다. 메일함에서 인증 후 로그인해주세요. 로그인하면 역할 설정 화면이 표시됩니다.");
+        signupForm.reset();
+      }
+    }).catch(function (err) {
+      setMsg(signupErrorEl, translateAuthError(err));
+    }).then(function () {
+      signupSubmitBtn.disabled = false;
+      signupSubmitBtn.textContent = "회원가입";
+    });
+  });
+
+  // ---- 역할 설정 폼 (로그인 이후 profiles 행이 없을 때) ----
+  var profileSetupForm = document.getElementById("profile-setup-form");
+  var profileSetupErrorEl = document.getElementById("profile-setup-error");
+  var profileSetupSubmitBtn = document.getElementById("profile-setup-submit-btn");
+
+  profileSetupForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    setMsg(profileSetupErrorEl, "");
+
+    var user = renderProfileSetup._user;
+    if (!user) {
+      setMsg(profileSetupErrorEl, "세션 정보를 찾을 수 없습니다. 새로고침 후 다시 로그인해주세요.");
+      return;
+    }
+
+    var roleInput = profileSetupForm.querySelector('input[name="setup-role"]:checked');
+    var role = roleInput ? roleInput.value : null;
+    var createSub = document.getElementById("setup-create-sub").checked;
+
+    if (!role) {
+      setMsg(profileSetupErrorEl, "역할을 선택해주세요.");
+      return;
+    }
+
+    profileSetupSubmitBtn.disabled = true;
+    profileSetupSubmitBtn.textContent = "저장 중...";
+
+    createProfileRows(user.id, role, createSub).then(function () {
+      return handleAuthenticated(user);
+    }).catch(function (err) {
+      setMsg(profileSetupErrorEl, translateAuthError(err));
+    }).then(function () {
+      profileSetupSubmitBtn.disabled = false;
+      profileSetupSubmitBtn.textContent = "역할 저장";
+    });
+  });
+
+  // ---- 로그아웃 ----
+  document.getElementById("logout-btn").addEventListener("click", function () {
+    sb.auth.signOut().then(function (res) {
+      if (res.error) {
+        alert(translateAuthError(res.error));
+        return;
+      }
+      loginForm.reset();
+      signupForm.reset();
+      setMsg(loginErrorEl, "");
+      setMsg(signupErrorEl, "");
+      setMsg(signupInfoEl, "");
+      tabLoginBtn.classList.add("active");
+      tabSignupBtn.classList.remove("active");
+      paneLogin.style.display = "block";
+      paneSignup.style.display = "none";
+      showView("auth");
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "wanted-auth-logout" }, "*");
+      }
+    });
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
