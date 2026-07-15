@@ -28,6 +28,7 @@ import {
   computeCompanyOptions,
   getPositionsForCompany,
   computeRewardPercentileExact,
+  computeRewardScaleValues,
   computeRewardBadgeChallenge,
   computeCompanyBadgeBenchmark,
   rankTagEffectStats,
@@ -197,12 +198,57 @@ function positionCardHTML(p, opts = {}) {
         <span title="지역(구/시 단위는 주소 텍스트 기반 근사치)">📍 ${escapeHTML(p.district)} · ${escapeHTML(p.location || '-')}</span>
         <span>💰 ${formatWon(p.reward_total)}</span>
         <span class="meta-dday-row">
-          <span>📅 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+          <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
           ${bookmarkBtnHTML}
         </span>
       </div>
       <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
     </article>
+  `;
+}
+
+/** 공고 경쟁력 진단 — 진단 대상(우리 회사) 공고를 경쟁 공고 목록과 섞지 않고, 위에 가로로 길게 별도 배너로 보여준다 */
+function ownPositionBannerHTML(p, opts = {}) {
+  const badge = ddayBadge(p.daysLeft);
+  const initial = (p.company.name || '?').charAt(0);
+  const avatarColor = colorForKey(p.company.name);
+  const logoUrl = p.company.logo_url;
+  const bookmarked = !!opts.isBookmarked;
+  const bookmarkBtnHTML = `
+    <button type="button" class="bookmark-btn ${bookmarked ? 'bookmark-btn--active' : ''}"
+      data-position-id="${p.id}" aria-pressed="${bookmarked}"
+      aria-label="${bookmarked ? '북마크 해제' : '북마크 추가'}" title="${bookmarked ? '북마크 해제' : '북마크 추가'}">
+      <span aria-hidden="true">${bookmarked ? '★' : '☆'}</span>
+    </button>
+  `;
+
+  const tagNames = [p.category.name, ...p.subTags.map((t) => t.name)].filter(Boolean).slice(0, 4);
+  const tagsHTML = tagNames
+    .map((name, i) => `<span class="tag-chip ${i === 0 ? 'tag-chip--category' : ''}">${escapeHTML(name)}</span>`)
+    .join('');
+
+  return `
+    <div class="position-banner">
+      <span class="position-banner__ribbon">📌 우리 회사 공고</span>
+      <div class="company-avatar" style="background:${avatarColor}">
+        <span class="company-avatar__fallback">${escapeHTML(initial)}</span>
+        ${logoUrl ? `<img class="company-avatar__img" src="${escapeHTML(logoUrl)}" alt="" onerror="this.style.display='none'" />` : ''}
+      </div>
+      <div class="position-banner__main">
+        <p class="company-name">${escapeHTML(p.company.name)}</p>
+        <h3 class="position-banner__title">${escapeHTML(p.title)}</h3>
+        <div class="tag-row">${tagsHTML}</div>
+      </div>
+      <div class="position-banner__stats">
+        <span class="dday-badge dday-badge--${badge.tone}">${escapeHTML(badge.text)}</span>
+        <span>💰 ${formatWon(p.reward_total)}</span>
+        <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+      </div>
+      <div class="position-banner__actions">
+        ${bookmarkBtnHTML}
+        <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
+      </div>
+    </div>
   `;
 }
 
@@ -243,7 +289,7 @@ function renderCategoryMoverList(container, items) {
 }
 
 function renderSkillMoverList(container, items, { stagger = false } = {}) {
-  // 탭 재방문 등으로 다시 렌더링될 때 이전 순차 재생 타이머가 계속 누적되지 않도록 먼저 멈추다.
+  // 탭 재방문 등으로 다시 렌더링될 때 이전 순차 재생 타이머가 계속 누적되지 않도록 먼저 멈춘다.
   if (container._moverStop) {
     container._moverStop();
     container._moverStop = null;
@@ -734,7 +780,7 @@ function renderSubTagChips() {
     return;
   }
 
-  // 직군(대분류)을 이미 하나로 좋혀놓은 상태라 그룹이 1개뿠이면, 굳이 또 접어두지 않고 바로 펼쳐서 보여준다.
+  // 직군(대분류)을 이미 하나로 좁혀놓은 상태라 그룹이 1개뿐이면, 굳이 또 접어두지 않고 바로 펼쳐서 보여준다.
   const singleGroup = groups.length === 1;
 
   container.innerHTML = groups
@@ -957,7 +1003,7 @@ function renderDiagCompanyOptionsList(query) {
         )
         .join('') +
       (filtered.length > limited.length
-        ? `<div class="searchable-select__empty">외 ${(filtered.length - limited.length).toLocaleString()}건 더 있음 — 검색어를 입력해 좋혀보세요.</div>`
+        ? `<div class="searchable-select__empty">외 ${(filtered.length - limited.length).toLocaleString()}건 더 있음 — 검색어를 입력해 좁혀보세요.</div>`
         : '')
     : '<div class="searchable-select__empty">일치하는 회사가 없습니다.</div>';
 
@@ -1037,11 +1083,17 @@ function renderDiagnosis() {
 
   // 1. 보상금 백분위 (실측)
   const rewardResult = computeRewardPercentileExact(position.reward_total, categoryPositions);
+  const rewardScale = computeRewardScaleValues(categoryPositions);
+  const rewardScaleLabels = rewardScale
+    ? Object.fromEntries(Object.entries(rewardScale).map(([pct, amount]) => [pct, formatWon(amount)]))
+    : null;
   $('#diag-gauge-desc').textContent = rewardResult
     ? `동일 직군(${position.category.name}) 공고 ${rewardResult.sampleSize.toLocaleString()}건과 실제 비교한 순위입니다.`
     : '비교할 동일 직군 공고 데이터가 부족합니다.';
   renderRankLadder($('#diag-gauge'), rewardResult ? rewardResult.percentile : null, {
     sublabel: `이 공고 보상금 ${formatWon(position.reward_total)}`,
+    markerValue: formatWon(position.reward_total),
+    scaleValues: rewardScaleLabels,
   });
 
   // 2. 배지 획득 챌린지 (실측)
@@ -1085,9 +1137,11 @@ function renderDiagnosis() {
         .join('')
     : '<div class="empty-state">비교할 배지 데이터가 없습니다.</div>';
 
-  // 4. 경쟁 공고 한눈에 보기 (실측) — 진단 대상(우리) 공고를 맨 위에 고정, 경쟁 공고마다 핵심 차이 표시
+  // 4-a. 우리 회사 공고 — 경쟁 공고 목록과 섞이지 않도록 위에 가로로 길게 별도 표시
+  $('#diag-own-position').innerHTML = ownPositionBannerHTML(position, { isBookmarked: isPositionBookmarked(position.id) });
+
+  // 4-b. 경쟁 공고 한눈에 보기 (실측) — 경쟁 공고마다 우리 공고와의 핵심 차이 표시
   const competing = computeCompetingPositions(positions, position, { limit: 6 });
-  const ownCardHTML = positionCardHTML(position, { own: true, isBookmarked: isPositionBookmarked(position.id) });
   const competingCardsHTML = competing.length
     ? competing
         .map((p) =>
@@ -1098,7 +1152,7 @@ function renderDiagnosis() {
         )
         .join('')
     : '<div class="empty-state">현재 경쟁 중인 타사 공고가 없습니다.</div>';
-  $('#diag-competing-list').innerHTML = ownCardHTML + competingCardsHTML;
+  $('#diag-competing-list').innerHTML = competingCardsHTML;
 }
 
 function renderDiagnosisTab() {
@@ -1122,13 +1176,29 @@ function setupDiagnosisStaticListeners() {
 
   const positionInput = $('#diag-position-search');
   const positionOptions = $('#diag-position-options');
+  const positionToggle = $('#diag-position-toggle');
+  // 눌러서 열 때(포커스)는 검색어로 필터링하지 않고 같은 회사의 전체 공고를 보여준다 —
+  // 안 그러면 입력창에 이미 채워진 현재 선택 공고명이 그대로 검색어로 쓰여서
+  // 제목이 다른 나머지 공고들이 걸러져 안 보이는 문제가 있었다.
   positionInput.addEventListener('input', () => renderDiagPositionOptionsList(positionInput.value));
-  positionInput.addEventListener('focus', () => renderDiagPositionOptionsList(positionInput.value));
+  positionInput.addEventListener('focus', () => {
+    renderDiagPositionOptionsList('');
+    positionToggle.classList.add('searchable-select__toggle--open');
+  });
   positionInput.addEventListener('blur', () => {
     setTimeout(() => {
       positionOptions.classList.add('hidden');
+      positionToggle.classList.remove('searchable-select__toggle--open');
       renderDiagPositionSelect();
     }, 120);
+  });
+  positionToggle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (positionOptions.classList.contains('hidden')) {
+      positionInput.focus();
+    } else {
+      positionInput.blur();
+    }
   });
 
   $('#diag-mycompany-toggle').addEventListener('click', () => {
@@ -1256,7 +1326,7 @@ async function loadData() {
 }
 
 /* 현재 로그인한 지원자의 북마크 Set을 가져온다. 로그인 안 되어 있거나
-   지원자 프로필이 없으면(채용자 계정 등) 빈 Set으로 처리한다
+   지원자 프로필이 없으면(채용자 계정 등) 빈 Set으로 처리하고 조용히 넘어간다
    (카드 렌더링 자체를 막을 이유는 없으므로 에러를 던지지 않는다). */
 async function loadBookmarkState() {
   try {
@@ -1343,10 +1413,15 @@ async function handleAuthChangeForBookmarks(session) {
 }
 
 function setupAuthListener() {
+  // onAuthStateChange 콜백 안에서 곧바로 다른 supabase.auth.* 메서드(getSession 등)를
+  // 호출하면 GoTrueClient 내부 락이 걸려 영원히 멈춘다(Supabase 공식 문서에 명시된 데드락 함정).
+  // setTimeout으로 콜백 실행을 한 틱 미뤄서 락이 풀린 뒤에 실행되게 한다.
   supabase.auth.onAuthStateChange((_event, session) => {
-    handleAuthChangeForBookmarks(session).catch((err) => {
-      console.error('[app] 로그인 상태 변경 처리 실패', err);
-    });
+    setTimeout(() => {
+      handleAuthChangeForBookmarks(session).catch((err) => {
+        console.error('[app] 로그인 상태 변경 처리 실패', err);
+      });
+    }, 0);
   });
 }
 
@@ -1390,7 +1465,7 @@ function setupNav() {
       const mode = nav ? nav.dataset.modeTabs : state.mode;
       const tab = btn.dataset.tab;
       setTab(mode, tab);
-      // 트렌드 탭은 등장 애니메이션(도넛 자동 한 바퀴, 상승/하락 태그 순차 튀)이 있어서
+      // 트렌드 탭은 등장 애니메이션(도넛 자동 한 바퀴, 상승/하락 태그 순차 팝)이 있어서
       // 페이지 로드 때 숨겨진 채로 미리 재생되어 버리지 않도록, 실제로 탭에 들어올 때 다시 그린다.
       if (mode === 'recruiter' && tab === 'trend') {
         renderTrendTab();
@@ -1477,7 +1552,7 @@ function setupRetry() {
 }
 
 function setupStaticListenersOnce() {
-  // 아래 셀렉트/인푸 요소들은 index.html에 고정 마크업으로 존재하며(옵션만 동적으로 채워짐)
+  // 아래 셀렉트/인풋 요소들은 index.html에 고정 마크업으로 존재하며(옵션만 동적으로 채워짐)
   // 데이터 재로딩(realtime refresh) 시 renderAll()이 반복 호출되어도 이 리스너들은 다시 붙이지 않는다
   // (그렇지 않으면 재조회 때마다 change 리스너가 중복 등록된다).
   setupRoadmapListeners();
