@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Wanted 통합 채용 대시보드 데모</title>
+<style>
+  :root {
+    --bg:#f4f6fb; --panel:#ffffff; --text:#1a1d29; --muted:#6b7280; --border:#e5e8ef;
+    --accent:#4f6df5; --accent2:#22c1a3; --accent3:#f5a623; --accent4:#e0568f; --danger:#e5484d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161f; --panel:#1d2030; --text:#eef0f7; --muted:#9aa0b4; --border:#2c2f42; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI","Pretendard",-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:20px 20px 60px; }
+  header { max-width:1160px; margin:0 auto 16px; }
+  header h1 { font-size:21px; margin:0 0 4px; }
+  header p { margin:0; color:var(--muted); font-size:12.5px; }
+  .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(79,109,245,.12); color:var(--accent); margin-left:8px; font-weight:600; }
+
+  .main-tabs { max-width:1160px; margin:0 auto 10px; display:flex; gap:8px; }
+  .main-tabs button { flex:1; padding:11px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-weight:700; font-size:14px; cursor:pointer; }
+  .main-tabs button.active.role-applicant { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .main-tabs button.active.role-recruiter { background:var(--accent4); border-color:var(--accent4); color:#fff; }
+
+  .sub-tabs { max-width:1160px; margin:0 auto 16px; display:flex; gap:6px; flex-wrap:wrap; }
+  .sub-tabs button { padding:7px 13px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; }
+  .sub-tabs button.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+
+  .wrap { max-width:1160px; margin:0 auto; }
+  .subpanel { display:none; }
+  .subpanel.active { display:block; }
+  .mainpanel { display:none; }
+  .mainpanel.active { display:block; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:14px; }
+  .grid2 { display:grid; grid-template-columns:320px 1fr; gap:14px; align-items:start; }
+  @media (max-width:800px){ .grid2{ grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:15px 17px; }
+  .card h3 { margin:0 0 4px; font-size:13.5px; font-weight:700; }
+  .card .sub { font-size:11px; color:var(--muted); margin-bottom:10px; }
+  .stat { font-size:23px; font-weight:700; }
+  .stat small { font-size:11px; font-weight:500; color:var(--muted); margin-left:4px; }
+  .full { grid-column:1/-1; }
+
+  select, input[type=number], input[type=text] { width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:13px; }
+  label.field { display:block; font-size:11px; color:var(--muted); margin:10px 0 4px; font-weight:600; }
+  .tag-check, .cbx { display:inline-flex; align-items:center; gap:4px; font-size:11px; border:1px solid var(--border); border-radius:999px; padding:3px 9px; margin:2px 3px 0 0; cursor:pointer; }
+  .tag-check input, .cbx input { margin:0; }
+
+  .bar-row { display:flex; align-items:center; gap:10px; margin:7px 0; }
+  .bar-label { width:140px; font-size:11.5px; color:var(--muted); flex-shrink:0; }
+  .bar-track { flex:1; background:var(--border); border-radius:6px; height:14px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:6px; }
+  .bar-value { width:70px; text-align:right; font-size:11.5px; font-weight:600; flex-shrink:0; }
+
+  .chip { font-size:10px; padding:2px 7px; border-radius:999px; font-weight:600; display:inline-block; margin:2px 3px 0 0; }
+  .chip.ok { background:rgba(34,193,163,.15); color:var(--accent2); }
+  .chip.warn { background:rgba(245,166,35,.15); color:var(--accent3); }
+  .chip.bad { background:rgba(229,72,77,.15); color:var(--danger); }
+  .chip.info { background:rgba(79,109,245,.15); color:var(--accent); }
+
+  .job-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 15px; margin-bottom:9px; }
+  .job-title { font-weight:700; font-size:13.5px; }
+  .job-meta { font-size:11.5px; color:var(--muted); margin:3px 0 6px; }
+
+  .score-circle { width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#fff; flex-shrink:0; }
+  .job-row { display:flex; gap:12px; align-items:center; }
+  .job-info { flex:1; }
+
+  .risk-card { background:var(--panel); border:1px solid var(--border); border-left:4px solid var(--danger); border-radius:10px; padding:13px 16px; margin-bottom:10px; }
+  .risk-card.mid { border-left-color:var(--accent3); }
+  .risk-type { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; display:inline-block; margin-bottom:6px; }
+  .risk-type.high { background:rgba(229,72,77,.15); color:var(--danger); }
+  .risk-type.mid { background:rgba(245,166,35,.15); color:var(--accent3); }
+  .risk-pos { font-weight:700; font-size:13.5px; }
+  .risk-detail { font-size:12px; color:var(--muted); margin:3px 0 9px; }
+  .action-btn { font-size:11.5px; padding:6px 11px; border-radius:7px; border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; font-weight:600; margin:0 5px 5px 0; }
+  .action-btn.applied { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+  .action-btn:disabled { cursor:default; }
+
+  .gauge-track { position:relative; height:10px; background:var(--border); border-radius:6px; margin:8px 0 4px; }
+  .gauge-fill { position:absolute; left:0; top:0; height:100%; border-radius:6px; background:var(--accent); }
+  .gauge-marker { position:absolute; top:-4px; width:2px; height:18px; background:var(--text); }
+
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 18px; border-radius:8px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .25s; z-index:99; }
+  #toast.show { opacity:1; }
+
+  svg text { fill:var(--muted); font-size:10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wanted 통합 채용 대시보드 <span class="badge">DEMO</span></h1>
+  <p>지원자 입장 / 채용자 입장을 탭으로 전환합니다. 모든 데이터는 json.v1·v2 스펙 구조를 따른 샘플 데이터이며 실제 API 호출은 하지 않습니다.</p>
+</header>
+
+<div class="main-tabs">
+  <button class="active role-applicant" onclick="switchMain('applicant')">🙋 지원자 입장</button>
+  <button class="role-recruiter" onclick="switchMain('recruiter')">🏢 채용자 입장</button>
+</div>
+
+<nav class="sub-tabs" id="applicant-subtabs">
+  <button class="active" onclick="switchSub('applicant','roadmap')">취준 로드맵</button>
+  <button onclick="switchSub('applicant','health')">기업 재무·인력 건강도 비교</button>
+  <button onclick="switchSub('applicant','pref')">우대조건 특화 필터</button>
+  <button onclick="switchSub('applicant','match')">개인 맞춤형 공고 재정렬</button>
+</nav>
+<nav class="sub-tabs" id="recruiter-subtabs" style="display:none;">
+  <button class="active" onclick="switchSub('recruiter','competitiveness')">공고 경쟁력 진단</button>
+  <button onclick="switchSub('recruiter','pipeline')">파이프라인 병목·이탈 위험 알림</button>
+</nav>
+
+<div class="wrap">
+
+<!-- ============ APPLICANT ============ -->
+<div class="mainpanel active" id="main-applicant">
+
+  <!-- 1. 취준 로드맵 -->
+  <section class="subpanel active" id="sub-applicant-roadmap">
+    <div class="grid2">
+      <div class="card">
+        <h3>내 스펙 입력</h3>
+        <div class="sub">희망 직군의 요구사항과 비교합니다</div>
+        <label class="field">희망 직군</label>
+        <select id="rm-category" onchange="renderRoadmapSkills(); updateRoadmap();">
+          <option value="서버 개발">서버 개발</option>
+          <option value="프론트엔드">프론트엔드</option>
+          <option value="데이터">데이터</option>
+          <option value="디자인">디자인</option>
+        </select>
+        <label class="field">현재 경력 (년)</label>
+        <input type="number" id="rm-years" value="1" min="0" oninput="updateRoadmap()">
+        <label class="field">보유 스킬</label>
+        <div id="rm-skills"></div>
+      </div>
+      <div>
+        <div class="card full" id="rm-summary" style="margin-bottom:12px;"></div>
+        <div class="card full" id="rm-gap" style="margin-bottom:12px;"></div>
+        <div class="card full" id="rm-reco"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 기업 건강도 비교 -->
+  <section class="subpanel" id="sub-applicant-health">
+    <div class="card full" style="margin-bottom:12px;">
+      <h3>비교할 기업 선택 (최대 4곳)</h3>
+      <div id="health-company-checks"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>종합 비교 레이더</h3>
+        <div class="sub">연봉수준 / 안정성 / 성장성 / 업력 / 생산성 (0~100 정규화)</div>
+        <div id="health-radar"></div>
+      </div>
+      <div class="card">
+        <h3>세부 지표</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:12px;" id="health-table"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 우대조건 필터 -->
+  <section class="subpanel" id="sub-applicant-pref">
+    <div class="card full" style="margin-bottom:12px;">
+      <h3>해당하는 우대조건 선택</h3>
+      <div id="pref-checks"></div>
+    </div>
+    <div id="pref-results"></div>
+  </section>
+
+  <!-- 4. 맞춤 공고 재정렬 -->
+  <section class="subpanel" id="sub-applicant-match">
+    <div class="grid2">
+      <div class="card" id="match-settings">
+        <h3>우선순위 설정</h3>
+        <div class="sub">포기불가 체크 시 하드필터로 작동</div>
+
+        <div class="factor-block">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 4px;">
+            <b style="font-size:12.5px;">직종</b>
+            <label class="cbx"><input type="checkbox" id="db-category" onchange="update()"> 포기불가</label>
+          </div>
+          <select id="val-category" onchange="update()">
+            <option value="">상관없음</option>
+            <option>서버 개발</option><option>프론트엔드</option><option>데이터</option><option>디자인</option><option>기획</option><option>마케팅</option>
+          </select>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+            <input type="range" min="0" max="5" value="3" id="weight-category" oninput="update()" style="flex:1;">
+            <span style="font-size:11px; color:var(--muted); width:56px;" id="wv-category">중요도 3</span>
+          </div>
+        </div>
+
+        <div class="factor-block">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:12px 0 4px;">
+            <b style="font-size:12.5px;">연봉(근사)</b>
+            <label class="cbx"><input type="checkbox" id="db-salary" onchange="update()"> 포기불가</label>
+          </div>
+          <input type="number" id="val-salary" value="4500" oninput="update()">
+          <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+            <input type="range" min="0" max="5" value="4" id="weight-salary" oninput="update()" style="flex:1;">
+            <span style="font-size:11px; color:var(--muted); width:56px;" id="wv-salary">중요도 4</span>
+          </div>
+        </div>
+
+        <div class="factor-block">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:12px 0 4px;">
+            <b style="font-size:12.5px;">워라밸(태그)</b>
+            <label class="cbx"><input type="checkbox" id="db-wlb" onchange="update()"> 포기불가</label>
+          </div>
+          <div id="wlb-tags"></div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+            <input type="range" min="0" max="5" value="5" id="weight-wlb" oninput="update()" style="flex:1;">
+            <span style="font-size:11px; color:var(--muted); width:56px;" id="wv-wlb">중요도 5</span>
+          </div>
+        </div>
+
+        <div class="factor-block">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:12px 0 4px;">
+            <b style="font-size:12.5px;">출퇴근거리(근사)</b>
+            <label class="cbx"><input type="checkbox" id="db-commute" onchange="update()"> 포기불가</label>
+          </div>
+          <input type="number" id="val-commute" value="15" oninput="update()">
+          <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+            <input type="range" min="0" max="5" value="2" id="weight-commute" oninput="update()" style="flex:1;">
+            <span style="font-size:11px; color:var(--muted); width:56px;" id="wv-commute">중요도 2</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div id="excluded-note"></div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:8px;" id="result-count"></div>
+        <div id="job-list"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ RECRUITER ============ -->
+<div class="mainpanel" id="main-recruiter">
+
+  <!-- 1. 공고 경쟁력 진단 -->
+  <section class="subpanel active" id="sub-recruiter-competitiveness">
+    <div class="card full" style="margin-bottom:12px;">
+      <label class="field">진단할 공고 선택</label>
+      <select id="cp-posting" onchange="updateCompetitiveness()"></select>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>시장 대비 보상금 백분위</h3>
+        <div id="cp-gauge"></div>
+        <div class="sub" id="cp-gauge-text"></div>
+        <h3 style="margin-top:16px;">부족한 매력 태그</h3>
+        <div id="cp-tag-gap"></div>
+      </div>
+      <div class="card">
+        <h3>매력 태그별 성과 (전체 공고 평균)</h3>
+        <div class="sub">태그 부착 시 평균 지원자 수 / 서류 합격률</div>
+        <div id="cp-tag-effect"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 파이프라인 병목 알림 -->
+  <section class="subpanel" id="sub-recruiter-pipeline">
+    <div class="grid">
+      <div class="card"><h3>긴급 알림</h3><div class="stat" style="color:var(--danger);" id="risk-high-count"></div></div>
+      <div class="card"><h3>주의 알림</h3><div class="stat" style="color:var(--accent3);" id="risk-mid-count"></div></div>
+      <div class="card"><h3>조치 완료</h3><div class="stat" style="color:var(--accent2);" id="risk-done-count">0</div></div>
+    </div>
+    <div id="risk-list"></div>
+  </section>
+
+</div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===================== NAV ===================== */
+function switchMain(role) {
+  document.querySelectorAll('.main-tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('.main-tabs .role-' + role).classList.add('active');
+  document.getElementById('main-applicant').classList.toggle('active', role==='applicant');
+  document.getElementById('main-recruiter').classList.toggle('active', role==='recruiter');
+  document.getElementById('applicant-subtabs').style.display = role==='applicant' ? 'flex' : 'none';
+  document.getElementById('recruiter-subtabs').style.display = role==='recruiter' ? 'flex' : 'none';
+}
+function switchSub(role, key) {
+  const nav = document.getElementById(role + '-subtabs');
+  Array.from(nav.children).forEach(b => b.classList.toggle('active', b.getAttribute('onclick').includes("'"+key+"'")));
+  document.querySelectorAll('#main-' + role + ' .subpanel').forEach(p => p.classList.remove('active'));
+  document.getElementById('sub-' + role + '-' + key).classList.add('active');
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function renderBars(containerId, items, colorFn) {
+  const el = document.getElementById(containerId);
+  const max = Math.max(...items.map(i => i.value), 1);
+  el.innerHTML = items.map((it) => `
+    <div class="bar-row">
+      <div class="bar-label">${it.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(it.value/max*100).toFixed(1)}%; background:${colorFn(it)}"></div></div>
+      <div class="bar-value">${it.value.toLocaleString()}${it.unit||''}</div>
+    </div>`).join('');
+}
+
+/* ===================== SHARED JOB DATA ===================== */
+const JOBS_FULL = [
+  { title:'[서버] Python 백엔드 개발자 (3년 이상)', company:'A테크', category:'서버 개발', salary:5200, years:3, skills:['Python','AWS','Docker'], tags:['재택근무','자기계발비지원'], distance:6, apply:[] },
+  { title:'[프론트엔드] React 개발자',              company:'B스튜디오', category:'프론트엔드', salary:4800, years:2, skills:['JavaScript','React','TypeScript'], tags:['유연근무','리프레시휴가','야근없음'], distance:22, apply:['foreigner'] },
+  { title:'[데이터] 데이터 분석가',                 company:'C인사이트', category:'데이터', salary:5600, years:3, skills:['Python','SQL','Spark'], tags:['재택근무','유연근무'], distance:4, apply:[] },
+  { title:'[디자인] Product Designer',               company:'D크리에이티브', category:'디자인', salary:4300, years:2, skills:['Figma','UX 리서치'], tags:['리프레시휴가','건강검진'], distance:11, apply:['disabled'] },
+  { title:'[PM] 프로덕트 매니저',                    company:'E랩스', category:'기획', salary:5800, years:4, skills:[], tags:['유연근무','자기계발비지원'], distance:18, apply:['military'] },
+  { title:'[백엔드] Java 개발자 (5년 이상)',         company:'F시스템즈', category:'서버 개발', salary:6100, years:5, skills:['Java','Spring','MySQL'], tags:['건강검진'], distance:9, apply:[] },
+  { title:'[마케팅] 퍼포먼스 마케터',                company:'G그로스', category:'마케팅', salary:4200, years:1, skills:[], tags:['재택근무','야근없음','리프레시휴가'], distance:3, apply:['foreigner'] },
+  { title:'[데이터] 데이터 엔지니어',                company:'H플랫폼', category:'데이터', salary:6500, years:4, skills:['Python','Spark','Airflow'], tags:['자기계발비지원'], distance:27, apply:[] },
+  { title:'[디자인] UX 리서처',                      company:'I디자인랩', category:'디자인', salary:4600, years:2, skills:['Figma','UX 리서치'], tags:['재택근무','유연근무','건강검진'], distance:8, apply:['disabled','military'] },
+  { title:'[기획] 서비스 기획자',                    company:'J커머스', category:'기획', salary:4900, years:3, skills:[], tags:['야근없음'], distance:14, apply:[] },
+];
+
+/* ===================== A-1. 취준 로드맵 ===================== */
+const CATEGORY_REQ = {
+  '서버 개발': { avgYears:3.5, avgSalary:5200, skills:{Python:70,Java:50,AWS:60,Docker:45,Kubernetes:30,MySQL:55,Spring:40} },
+  '프론트엔드': { avgYears:2.5, avgSalary:4700, skills:{JavaScript:85,React:75,TypeScript:60,CSS:50,Vue:20} },
+  '데이터': { avgYears:3.0, avgSalary:5600, skills:{Python:80,SQL:70,Spark:35,Airflow:30,Tableau:25} },
+  '디자인': { avgYears:2.0, avgSalary:4400, skills:{Figma:80,Sketch:30,'UX 리서치':40,Photoshop:35} },
+};
+function renderRoadmapSkills() {
+  const cat = document.getElementById('rm-category').value;
+  const skills = Object.keys(CATEGORY_REQ[cat].skills);
+  document.getElementById('rm-skills').innerHTML = skills.map((s,i) => `
+    <label class="tag-check"><input type="checkbox" class="rm-skill-cb" value="${s}" ${i<1?'checked':''} onchange="updateRoadmap()"> ${s}</label>`).join('');
+}
+function updateRoadmap() {
+  const cat = document.getElementById('rm-category').value;
+  const years = Number(document.getElementById('rm-years').value) || 0;
+  const req = CATEGORY_REQ[cat];
+  const mySkills = Array.from(document.querySelectorAll('.rm-skill-cb:checked')).map(el => el.value);
+
+  const entries = Object.entries(req.skills).sort((a,b)=>b[1]-a[1]);
+  const totalFreq = entries.reduce((s,[,f])=>s+f,0);
+  const matchedFreq = entries.filter(([s])=>mySkills.includes(s)).reduce((s,[,f])=>s+f,0);
+  const coverage = Math.round((matchedFreq/totalFreq)*100);
+  const yearsGap = req.avgYears - years;
+
+  document.getElementById('rm-summary').innerHTML = `
+    <h3>${cat} 준비도 요약</h3>
+    <div class="grid" style="margin-top:6px;">
+      <div><div class="stat">${coverage}<small>%</small></div><div class="sub">스킬 커버리지</div></div>
+      <div><div class="stat">${yearsGap > 0 ? '+'+yearsGap.toFixed(1) : '충족'}<small>${yearsGap>0?'년 더 필요':''}</small></div><div class="sub">경력 갭 (평균 ${req.avgYears}년 요구)</div></div>
+      <div><div class="stat">${req.avgSalary.toLocaleString()}<small>만원</small></div><div class="sub">평균 연봉 수준</div></div>
+    </div>`;
+
+  const gapSkills = entries.filter(([s]) => !mySkills.includes(s)).slice(0,3);
+  document.getElementById('rm-gap').innerHTML = `
+    <h3>지금 준비하면 좋은 스킬</h3>
+    <div class="sub">해당 직군 공고에서 요구 빈도가 높은데 아직 없는 스킬 순</div>
+    ${gapSkills.length ? gapSkills.map(([s,f]) => `<span class="chip warn">${s} · 요구빈도 ${f}%</span>`).join('') : '<span class="chip ok">핵심 요구 스킬을 모두 보유하고 있습니다</span>'}`;
+
+  const candidates = JOBS_FULL.filter(j => j.category === cat).map(j => {
+    const skillHit = j.skills.length ? j.skills.filter(s=>mySkills.includes(s)).length / j.skills.length : 1;
+    const yearsFit = years >= j.years ? 1 : Math.max(0, 1 - (j.years-years)/j.years);
+    const score = Math.round((skillHit*0.6 + yearsFit*0.4) * 100);
+    return {j, score};
+  }).sort((a,b)=>b.score-a.score).slice(0,3);
+
+  document.getElementById('rm-reco').innerHTML = `
+    <h3>지금 상태로 지원하면 유리한 공고</h3>
+    ${candidates.map(c => `
+      <div class="job-row" style="margin-bottom:8px;">
+        <div class="score-circle" style="background:${c.score>=70?'#22c1a3':c.score>=40?'#4f6df5':'#f5a623'}">${c.score}</div>
+        <div class="job-info"><div class="job-title">${c.j.title}</div><div class="job-meta">${c.j.company} · 요구 경력 ${c.j.years}년 · ${c.j.salary}만</div></div>
+      </div>`).join('') || '<div class="sub">해당 직군 공고가 없습니다</div>'}`;
+}
+renderRoadmapSkills();
+updateRoadmap();
+
+/* ===================== A-2. 기업 건강도 비교 ===================== */
+const COMPANIES = [
+  { name:'A테크', avgSalary:5200, leftRate:6, empChange:8, age:9, salesPerPerson:2.8, color:'#4f6df5' },
+  { name:'K인베스트', avgSalary:6100, leftRate:12, empChange:-3, age:15, salesPerPerson:4.1, color:'#22c1a3' },
+  { name:'N소프트', avgSalary:4800, leftRate:9, empChange:15, age:4, salesPerPerson:1.6, color:'#f5a623' },
+  { name:'S바이오', avgSalary:5500, leftRate:4, empChange:5, age:20, salesPerPerson:3.3, color:'#e0568f' },
+];
+function renderHealthChecks() {
+  document.getElementById('health-company-checks').innerHTML = COMPANIES.map((c,i) => `
+    <label class="cbx"><input type="checkbox" class="health-cb" value="${i}" ${i<3?'checked':''} onchange="updateHealth()"> ${c.name}</label>`).join('');
+}
+function normAxes(c) {
+  return [
+    Math.min(100, c.avgSalary/7000*100),
+    Math.max(0, 100 - c.leftRate*5),
+    Math.max(0, Math.min(100, 50 + c.empChange*2.5)),
+    Math.min(100, c.age*4),
+    Math.min(100, c.salesPerPerson/5*100),
+  ];
+}
+function drawRadar(axesLabels, series) {
+  const size=280, cx=size/2, cy=size/2-10, maxR=100;
+  const n = axesLabels.length;
+  const angle = i => -Math.PI/2 + i*(2*Math.PI/n);
+  const pt = (i, r) => [cx + r*Math.cos(angle(i)), cy + r*Math.sin(angle(i))];
+  let grid = '';
+  [0.2,0.4,0.6,0.8,1.0].forEach(level => {
+    const pts = Array.from({length:n}, (_,i) => pt(i, maxR*level).join(',')).join(' ');
+    grid += `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
+  });
+  for (let i=0;i<n;i++){ const [x,y]=pt(i,maxR); grid += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--border)"/>`; }
+  const labels = axesLabels.map((l,i) => { const [x,y]=pt(i,maxR+18); return `<text x="${x}" y="${y}" text-anchor="middle">${l}</text>`; }).join('');
+  const polys = series.map(s => {
+    const pts = s.values.map((v,i)=>pt(i, v/100*maxR).join(',')).join(' ');
+    return `<polygon points="${pts}" fill="${s.color}22" stroke="${s.color}" stroke-width="2"/>`;
+  }).join('');
+  const legend = series.map(s => `<span style="color:${s.color}; font-size:11px; margin-right:10px;">● ${s.name}</span>`).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${grid}${polys}</svg><div style="margin-top:4px;">${legend}</div>`;
+}
+function updateHealth() {
+  const selected = Array.from(document.querySelectorAll('.health-cb:checked')).map(el => COMPANIES[Number(el.value)]);
+  const axesLabels = ['연봉수준','안정성','성장성','업력','생산성'];
+  const series = selected.map(c => ({ name:c.name, color:c.color, values: normAxes(c) }));
+  document.getElementById('health-radar').innerHTML = selected.length ? drawRadar(axesLabels, series) : '<div class="sub">비교할 기업을 선택하세요</div>';
+  document.getElementById('health-table').innerHTML = `
+    <thead><tr><th style="text-align:left; color:var(--muted);">기업</th><th>평균연봉</th><th>퇴사율</th><th>인원변동율</th><th>업력</th><th>1인당매출</th></tr></thead>
+    <tbody>${selected.map(c => `<tr>
+      <td style="color:${c.color}; font-weight:700;">${c.name}</td>
+      <td>${c.avgSalary.toLocaleString()}만</td>
+      <td>${c.leftRate}%</td>
+      <td>${c.empChange>0?'+':''}${c.empChange}%</td>
+      <td>${c.age}년</td>
+      <td>${c.salesPerPerson}억</td>
+    </tr>`).join('')}</tbody>`;
+}
+renderHealthChecks();
+updateHealth();
+
+/* ===================== A-3. 우대조건 필터 ===================== */
+const APPLY_TYPE_LABEL = { foreigner:'외국인 우대', military:'병역특례', disabled:'장애인 우대' };
+function updatePref() {
+  const selected = Array.from(document.querySelectorAll('.pref-cb:checked')).map(el => el.value);
+  const results = selected.length ? JOBS_FULL.filter(j => selected.some(t => j.apply.includes(t))) : [];
+  document.getElementById('pref-results').innerHTML = !selected.length
+    ? '<div class="card">조건을 하나 이상 선택하면 해당 공고만 모아 보여줍니다.</div>'
+    : (results.length ? results.map(j => `
+        <div class="job-card">
+          <div class="job-title">${j.title}</div>
+          <div class="job-meta">${j.company} · ${j.category} · ${j.salary}만</div>
+          ${j.apply.map(t => `<span class="chip info">${APPLY_TYPE_LABEL[t]}</span>`).join('')}
+        </div>`).join('') : '<div class="card">해당 조건의 공고가 없습니다.</div>');
+}
+document.getElementById('pref-checks').innerHTML = Object.entries(APPLY_TYPE_LABEL).map(([k,l]) => `
+  <label class="cbx"><input type="checkbox" class="pref-cb" value="${k}" onchange="updatePref()"> ${l}</label>`).join('');
+updatePref();
+
+/* ===================== A-4. 맞춤 공고 재정렬 ===================== */
+const TAG_POOL = ['재택근무','유연근무','리프레시휴가','야근없음','자기계발비지원','건강검진'];
+document.getElementById('wlb-tags').innerHTML = TAG_POOL.map((t,i) => `
+  <label class="tag-check"><input type="checkbox" class="wlb-cb" value="${t}" ${i<2?'checked':''} onchange="update()"> ${t}</label>`).join('');
+['category','salary','wlb','commute'].forEach(k => {
+  document.getElementById('weight-'+k).addEventListener('input', () => {
+    document.getElementById('wv-'+k).textContent = '중요도 ' + document.getElementById('weight-'+k).value;
+  });
+});
+function update() {
+  const dbCategory = document.getElementById('db-category').checked;
+  const dbSalary = document.getElementById('db-salary').checked;
+  const dbWlb = document.getElementById('db-wlb').checked;
+  const dbCommute = document.getElementById('db-commute').checked;
+
+  const wantCategory = document.getElementById('val-category').value;
+  const minSalary = Number(document.getElementById('val-salary').value) || 0;
+  const wantedTags = Array.from(document.querySelectorAll('.wlb-cb:checked')).map(el => el.value);
+  const maxCommute = Number(document.getElementById('val-commute').value) || 999;
+
+  const wCategory = Number(document.getElementById('weight-category').value);
+  const wSalary = Number(document.getElementById('weight-salary').value);
+  const wWlb = Number(document.getElementById('weight-wlb').value);
+  const wCommute = Number(document.getElementById('weight-commute').value);
+
+  let excludedCount = 0;
+  const scored = [];
+  JOBS_FULL.forEach(job => {
+    if (dbCategory && wantCategory && job.category !== wantCategory) { excludedCount++; return; }
+    if (dbSalary && job.salary < minSalary) { excludedCount++; return; }
+    if (dbWlb && wantedTags.length && !wantedTags.every(t => job.tags.includes(t))) { excludedCount++; return; }
+    if (dbCommute && job.distance > maxCommute) { excludedCount++; return; }
+
+    const scores = {}; let totalW = 0, weighted = 0;
+    if (!dbCategory) { const s = wantCategory ? (job.category===wantCategory?1:0.25) : 1; scores.category=s; totalW+=wCategory; weighted+=s*wCategory; }
+    if (!dbSalary) { const s = minSalary>0 ? Math.max(0,Math.min(1, job.salary/minSalary)) : 1; scores.salary=s; totalW+=wSalary; weighted+=s*wSalary; }
+    if (!dbWlb) { const s = wantedTags.length ? wantedTags.filter(t=>job.tags.includes(t)).length/wantedTags.length : 1; scores.wlb=s; totalW+=wWlb; weighted+=s*wWlb; }
+    if (!dbCommute) { const s = Math.max(0,Math.min(1, 1-job.distance/(maxCommute||30))); scores.commute=s; totalW+=wCommute; weighted+=s*wCommute; }
+    const finalScore = totalW>0 ? Math.round((weighted/totalW)*100) : 100;
+    scored.push({job, finalScore, scores, db:{dbCategory,dbSalary,dbWlb,dbCommute}});
+  });
+  scored.sort((a,b)=>b.finalScore-a.finalScore);
+
+  document.getElementById('excluded-note').innerHTML = excludedCount>0
+    ? `<div class="card" style="border-color:rgba(229,72,77,.3); background:rgba(229,72,77,.06); margin-bottom:10px; font-size:12px;">🚫 포기불가 조건에 맞지 않아 <b>${excludedCount}건</b> 제외됨</div>` : '';
+  document.getElementById('result-count').textContent = `총 ${scored.length}건 매칭 (전체 ${JOBS_FULL.length}건 중)`;
+  const colorFor = s => s>=75?'#22c1a3':s>=50?'#4f6df5':s>=25?'#f5a623':'#e5484d';
+  document.getElementById('job-list').innerHTML = scored.map(r => {
+    const chip = (key,label,dbKey) => {
+      if (r.db[dbKey]) return `<span class="chip ok">✓ ${label} 필수충족</span>`;
+      if (!(key in r.scores)) return '';
+      const s=r.scores[key]; const cls = s>=0.75?'ok':s>=0.4?'warn':'bad';
+      return `<span class="chip ${cls}">${label} ${Math.round(s*100)}%</span>`;
+    };
+    return `<div class="job-card"><div class="job-row">
+      <div class="score-circle" style="background:${colorFor(r.finalScore)}">${r.finalScore}</div>
+      <div class="job-info">
+        <div class="job-title">${r.job.title}</div>
+        <div class="job-meta">${r.job.company} · 연봉 약 ${r.job.salary}만 · ${r.job.distance}km · ${r.job.tags.join(', ')}</div>
+        <div>${chip('category','직종','dbCategory')}${chip('salary','연봉','dbSalary')}${chip('wlb','워라밸','dbWlb')}${chip('commute','거리','dbCommute')}</div>
+      </div>
+    </div></div>`;
+  }).join('') || '<div class="card">조건에 맞는 공고가 없습니다. 포기불가 조건을 완화해보세요.</div>';
+}
+update();
+
+/* ===================== R-1. 공고 경쟁력 진단 ===================== */
+const OUR_POSTINGS = [
+  { name:'[서버] 백엔드 개발자 채용', category:'서버 개발', reward:80, tags:['자기계발비지원'], applicants:22, percentile:68 },
+  { name:'[프론트] React 개발자 채용', category:'프론트엔드', reward:50, tags:['유연근무'], applicants:41, percentile:34 },
+  { name:'[데이터] 데이터 분석가 채용', category:'데이터', reward:100, tags:['재택근무','유연근무'], applicants:18, percentile:82 },
+];
+const MARKET_COMMON_TAGS = {
+  '서버 개발': ['재택근무','자기계발비지원','유연근무'],
+  '프론트엔드': ['유연근무','리프레시휴가','재택근무'],
+  '데이터': ['재택근무','유연근무','자기계발비지원'],
+};
+const TAG_EFFECT = [
+  { tag:'재택근무', avgApplicants:38, passRate:42 },
+  { tag:'유연근무', avgApplicants:31, passRate:35 },
+  { tag:'스톡옵션', avgApplicants:45, passRate:30 },
+  { tag:'리프레시휴가', avgApplicants:22, passRate:38 },
+  { tag:'자기계발비지원', avgApplicants:19, passRate:33 },
+  { tag:'태그 없음', avgApplicants:12, passRate:25 },
+];
+document.getElementById('cp-posting').innerHTML = OUR_POSTINGS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('');
+function updateCompetitiveness() {
+  const p = OUR_POSTINGS[Number(document.getElementById('cp-posting').value)];
+  const color = p.percentile>=70?'#22c1a3':p.percentile>=40?'#f5a623':'#e5484d';
+  document.getElementById('cp-gauge').innerHTML = `
+    <div class="gauge-track"><div class="gauge-fill" style="width:${p.percentile}%; background:${color};"></div><div class="gauge-marker" style="left:${p.percentile}%;"></div></div>`;
+  document.getElementById('cp-gauge-text').textContent = `동일 직군(${p.category}) 공고 대비 보상금 상위 ${100-p.percentile}% 구간 (${p.percentile}백분위)`;
+  const missing = (MARKET_COMMON_TAGS[p.category]||[]).filter(t => !p.tags.includes(t));
+  document.getElementById('cp-tag-gap').innerHTML = missing.length
+    ? missing.map(t => `<div class="chip warn" style="display:block; margin-bottom:6px; padding:8px 10px;">이 공고에 <b>${t}</b> 태그를 추가하면 노출 경쟁력이 개선될 수 있습니다</div>`).join('')
+    : '<span class="chip ok">시장 대비 매력 태그를 충분히 갖추고 있습니다</span>';
+}
+updateCompetitiveness();
+renderBars('cp-tag-effect', TAG_EFFECT.map(t=>({label:t.tag+' (합격률 '+t.passRate+'%)', value:t.avgApplicants, unit:'명'})), () => '#4f6df5');
+
+/* ===================== R-2. 파이프라인 병목 알림 ===================== */
+const RISK_ITEMS = [
+  { level:'high', type:'마감임박 + 지원자 부족', position:'[데이터] 데이터 분석가 채용', detail:'마감 D-2, 목표 지원자 대비 40% 수준', actions:['마감일 연장','보상금 상향','조건 완화'] },
+  { level:'mid', type:'서류합격 후 정체', position:'[서버] 백엔드 개발자 채용', detail:'서류합격자 3명, 5일째 다음 전형 진행 없음', actions:['담당자 리마인드','SLA 기준 설정'] },
+  { level:'mid', type:'초기 미열람', position:'[프론트] React 개발자 채용', detail:'신규 지원 9건, 24시간 이상 미열람', actions:['지연 안내 메시지 발송','우선 열람 큐 등록'] },
+  { level:'high', type:'마감임박 + 지원자 부족', position:'[기획] 서비스 기획자 채용', detail:'마감 D-1, 지원자 3명뿐', actions:['마감일 연장','지역 제한 해제','매력 태그 추가'] },
+];
+let doneCount = 0;
+function renderRisks() {
+  document.getElementById('risk-high-count').textContent = RISK_ITEMS.filter(r=>r.level==='high').length + '건';
+  document.getElementById('risk-mid-count').textContent = RISK_ITEMS.filter(r=>r.level==='mid').length + '건';
+  document.getElementById('risk-list').innerHTML = RISK_ITEMS.map((r, idx) => `
+    <div class="risk-card ${r.level==='mid'?'mid':''}">
+      <span class="risk-type ${r.level}">${r.level==='high'?'🔴 긴급':'🟡 주의'} · ${r.type}</span>
+      <div class="risk-pos">${r.position}</div>
+      <div class="risk-detail">${r.detail}</div>
+      <div>${r.actions.map((a,ai) => `<button class="action-btn" id="act-${idx}-${ai}" onclick="applyAction(${idx},${ai},'${a}')">${a}</button>`).join('')}</div>
+    </div>`).join('');
+}
+function applyAction(idx, ai, label) {
+  const btn = document.getElementById(`act-${idx}-${ai}`);
+  if (btn.classList.contains('applied')) return;
+  btn.classList.add('applied');
+  btn.textContent = '✓ ' + label;
+  btn.disabled = true;
+  doneCount++;
+  document.getElementById('risk-done-count').textContent = doneCount;
+  toast('✅ "' + label + '" 조치가 적용되었습니다 (데모)');
+}
+renderRisks();
+</script>
+
+</body>
+</html>

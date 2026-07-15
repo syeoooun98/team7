@@ -14,6 +14,7 @@ import {
   computeSkillMentionRanking,
   recommendPositions,
   computeCategorySkillFrequency,
+  groupSkillRanking,
   computeCategoryAnnualStats,
   computeRoadmap,
   computeCompanyOptions,
@@ -26,6 +27,7 @@ import {
   renderHBarChart,
   renderSparkline,
   renderGaugeBar,
+  renderYearsGapBar,
   colorForKey,
   formatWon,
   formatDate,
@@ -54,7 +56,7 @@ const state = {
     sort: 'deadline',
   },
   searchVisibleCount: 24,
-  roadmap: { categoryId: null, years: 0, mySkills: new Set() },
+  roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
   diagnosis: { companyId: null, positionId: null, companyTags: [] },
 };
 
@@ -310,22 +312,46 @@ function renderRoadmapSkillChips() {
     return;
   }
 
-  container.innerHTML = top
-    .map(
-      (s) => `
-      <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
-        ${escapeHTML(s.name)} <span>${s.count}</span>
-      </button>
-    `
-    )
+  const groups = groupSkillRanking(top);
+
+  const chipHTML = (s) => `
+    <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
+      ${escapeHTML(s.name)} <span>${s.count}</span>
+    </button>
+  `;
+
+  container.innerHTML = groups
+    .map((g) => {
+      const expanded = state.roadmap.expandedSkillGroups.has(g.key);
+      const selectedCount = g.items.filter((s) => state.roadmap.mySkills.has(s.name)).length;
+      return `
+      <div class="skill-group-block">
+        <button type="button" class="skill-group-header ${expanded ? 'skill-group-header--open' : ''}" data-group="${g.key}">
+          <span class="skill-group-header__arrow">▸</span>
+          <span class="skill-group-header__label">${escapeHTML(g.label)}</span>
+          <span class="skill-group-header__count">${g.items.length}개${selectedCount ? ` · 선택 ${selectedCount}` : ''}</span>
+        </button>
+        <div class="chip-group skill-group-body ${expanded ? '' : 'skill-group-body--collapsed'}">${g.items.map(chipHTML).join('')}</div>
+      </div>
+    `;
+    })
     .join('');
+
+  $$('.skill-group-header', container).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.group;
+      if (state.roadmap.expandedSkillGroups.has(key)) state.roadmap.expandedSkillGroups.delete(key);
+      else state.roadmap.expandedSkillGroups.add(key);
+      renderRoadmapSkillChips();
+    });
+  });
 
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const skill = btn.dataset.skill;
       if (state.roadmap.mySkills.has(skill)) state.roadmap.mySkills.delete(skill);
       else state.roadmap.mySkills.add(skill);
-      btn.classList.toggle('chip-toggle--active');
+      renderRoadmapSkillChips();
       renderRoadmapOutput();
     });
   });
@@ -346,20 +372,10 @@ function renderRoadmapOutput() {
     risingSkillNames: risingSet,
   });
 
-  const gapText =
-    annual.avgFrom != null
-      ? `${(years - annual.avgFrom).toFixed(1)}년 ${years - annual.avgFrom >= 0 ? '초과' : '부족'}`
-      : '데이터 없음';
-
   $('#roadmap-kpis').innerHTML = `
-    <div class="kpi-card">
-      <p class="kpi-label">직군 평균 요구 연차</p>
-      <p class="kpi-value">${annual.avgFrom != null ? annual.avgFrom.toFixed(1) : '-'}<span class="kpi-unit">년</span></p>
-      <p class="kpi-sub">표본 ${annual.sample.toLocaleString()}건 / 전체 ${annual.totalInCategory.toLocaleString()}건 (연차 정보 있는 공고만)</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">내 연차 대비 갭</p>
-      <p class="kpi-value">${gapText}</p>
+    <div class="kpi-card kpi-card--wide">
+      <p class="kpi-label">직군 평균 요구 연차 대비</p>
+      <div id="roadmap-years-gap"></div>
     </div>
     <div class="kpi-card">
       <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
@@ -372,6 +388,14 @@ function renderRoadmapOutput() {
       <p class="kpi-sub">포지션 단위 연봉 데이터가 API에 없어 미제공</p>
     </div>
   `;
+
+  renderYearsGapBar($('#roadmap-years-gap'), {
+    avgYears: annual.avgFrom,
+    myYears: years,
+    onChange: (newYears) => {
+      state.roadmap.years = newYears;
+    },
+  });
 
   const missingContainer = $('#roadmap-missing-skills');
   if (roadmap.missingTop3.length === 0) {
@@ -410,11 +434,6 @@ function setupRoadmapListeners() {
     state.roadmap.categoryId = e.target.value === 'all' ? null : Number(e.target.value);
     state.roadmap.mySkills.clear();
     renderRoadmapSkillChips();
-    renderRoadmapOutput();
-  });
-
-  $('#roadmap-years').addEventListener('input', (e) => {
-    state.roadmap.years = Number(e.target.value) || 0;
     renderRoadmapOutput();
   });
 }

@@ -331,6 +331,8 @@ code {
   border: 1px solid var(--color-border);
 }
 
+.kpi-card--wide { grid-column: 1 / -1; }
+
 .kpi-card--urgent {
   border-color: rgba(239, 68, 68, 0.35);
   background: linear-gradient(180deg, var(--color-surface), rgba(239, 68, 68, 0.08));
@@ -557,6 +559,107 @@ code {
   color: var(--color-text-muted);
 }
 .gauge-readout strong { color: var(--color-text); }
+
+/* 연차 갭 바 (직군 평균 요구 연차 vs 내 연차) — 이전 크기의 2/3 */
+.years-gap { display: flex; flex-direction: column; gap: 11px; margin-top: 11px; min-height: 160px; justify-content: center; }
+
+.years-gap-track {
+  position: relative;
+  height: 59px;
+  margin: 46px 7px 20px;
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+}
+
+.years-gap-track::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 15px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--color-neutral-light);
+}
+
+.years-gap-track:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.years-gap-band {
+  position: absolute;
+  top: 50%;
+  height: 15px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+.years-gap-band--up { background: var(--color-accent-light); }
+.years-gap-band--down { background: var(--color-danger-light); }
+
+.years-gap-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* 클릭/드래그는 부모 .years-gap-track에서 위임 처리 */
+}
+
+.years-gap-marker__dot {
+  display: block;
+  width: 13px;
+  height: 13px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+
+.years-gap-marker--avg .years-gap-marker__dot { background: var(--color-text-faint); }
+.years-gap-marker--me .years-gap-marker__dot {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-border-strong), 0 0 0 4px var(--color-primary-light);
+}
+
+.years-gap-marker__label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.years-gap-marker--avg .years-gap-marker__label { bottom: 28px; }
+.years-gap-marker--me .years-gap-marker__label { top: 30px; color: var(--color-primary-dark); }
+
+.years-gap-marker__label--up { color: var(--color-accent); }
+.years-gap-marker__label--down { color: var(--color-danger); }
+
+.years-gap-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8.5px;
+  color: var(--color-text-faint);
+}
+
+/* 왼쪽 하단 강조 텍스트 — "직군 평균 xx년" (예전엔 갭 값이 여기서 강조되던 자리) */
+.years-gap-readout {
+  margin: 3px 0 0;
+  text-align: left;
+  font-size: 9.5px;
+  color: var(--color-text-muted);
+}
+
+.years-gap-readout__value {
+  margin-left: 4px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-text);
+}
 
 /* 등락 리스트 (급등/급감 직군, 스킬 트렌드, 매력태그 제안 등 공용) */
 .mover-list { display: flex; flex-direction: column; gap: 8px; }
@@ -841,6 +944,51 @@ code {
 
 .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-group--scroll { max-height: 280px; overflow-y: auto; padding-right: 4px; }
+
+/* #roadmap-skill-chips 컨테이너 자체가 .chip-group(flex-wrap)이라, 그룹 블록이 그 안에서
+   flex item으로 나란히 배치되지 않고 한 줄씩 차지하도록 flex-basis를 100%로 고정한다. */
+.skill-group-block { flex-basis: 100%; width: 100%; }
+.skill-group-block + .skill-group-block { margin-top: 6px; }
+
+.skill-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 2px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  text-align: left;
+}
+
+.skill-group-header__arrow {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  transition: transform 0.15s ease;
+}
+
+.skill-group-header--open .skill-group-header__arrow { transform: rotate(90deg); }
+
+.skill-group-header__label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.skill-group-header__count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-faint);
+}
+
+.skill-group-body {
+  padding: 8px 2px 4px;
+}
+
+.skill-group-body--collapsed { display: none; }
 
 .chip-toggle {
   border: 1px solid var(--color-border-strong);
