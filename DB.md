@@ -7,7 +7,7 @@
 - **원본 동기화 데이터**와 **자체 집계/배치 데이터**를 테이블 레벨에서 분리한다. 전자는 원티드 API 응답을 그대로 캐싱한 테이블(예: `companies`, `positions`), 후자는 API가 제공하지 않아 우리가 직접 쌓아야 하는 시계열/통계 테이블(예: `position_daily_snapshot`, `skill_tag_trend`)이다. PRD 8장의 제약사항이 여기서 기인한다.
 - **공용 데이터 모듈**(PRD 6장, 스킬 태그 트렌드)은 소비 주체(지원자/채용자)와 무관하게 테이블 하나(`skill_tag_trend`)로 두고, 화면마다 다르게 조회한다.
 - 지원자의 "포기불가/가중치" 같은 개인화 설정은 매 요청마다 클라이언트에서 계산 가능하도록 원자 값으로 저장한다(구조화된 JSON 대신 정규화 테이블 사용 — 추후 "내가 자주 쓰는 조건 저장" 같은 기능 확장을 고려).
-- 민감 정보(지원자 개인정보: 이름/이메일/전화번호, 이력서 파일)는 최소 컬럼만 두고 실제 파일은 별도 스토리지(S3 등) key만 참조한다.
+- 민감 정보(지원자 개인정보: 이름/이메일/전화번호, 이력서 파일)는 최소 컴럼만 두고 실제 파일은 별도 스토리지(S3 등) key만 참조한다.
 
 ## 2. ERD 개요
 
@@ -49,7 +49,7 @@ erDiagram
 ### 3.1 계정 / 프로필
 
 **users** — 서비스 공통 계정
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | email | VARCHAR(255) | UNIQUE, NOT NULL | |
@@ -58,7 +58,7 @@ erDiagram
 | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **applicant_profiles** — 지원자 스펙 (5.1 취준 로드맵, 5.4 맞춤 재정렬의 기반)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | user_id | BIGINT | FK → users.id, UNIQUE | |
@@ -69,14 +69,14 @@ erDiagram
 | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **applicant_skills** — 보유 스킬 (다대다)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | applicant_profile_id | BIGINT | FK → applicant_profiles.id | |
 | skill_tag_id | BIGINT | FK → tags.id | |
 | PRIMARY KEY | (applicant_profile_id, skill_tag_id) | | |
 
 **recruiter_profiles** — 채용 담당자
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | user_id | BIGINT | FK → users.id, UNIQUE | |
@@ -85,7 +85,7 @@ erDiagram
 ### 3.2 기업 / 공고 (원티드 API 동기화 캐시)
 
 **companies**
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 원티드 company_id 그대로 사용 |
 | name | VARCHAR(255) | NOT NULL | |
@@ -96,7 +96,7 @@ erDiagram
 | synced_at | TIMESTAMPTZ | NOT NULL | 마지막 API 동기화 시각 |
 
 **company_tags** — 회사 단위 배지성 태그 (`JobCompanyResponseSerializer.company_tags`)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | company_id | BIGINT | FK → companies.id | |
 | tag_type_id | BIGINT | NOT NULL | 원티드가 매기는 태그ID. **`tags` 마스터(직군/직무/매력)와는 별개의 ID 체계**라 FK로 걸지 않는다 |
@@ -106,7 +106,7 @@ erDiagram
 > ⚠️ 공고 단위(`position_tags`)로는 여전히 매력 태그를 못 채우지만(3.2절 아래 유의사항 참고), **회사 단위로는 이런 배지 태그가 실제로 존재**한다는 걸 `job_details.csv` 실데이터로 확인했다. "재택근무"/"유연근무" 같은 워라밸 근사값을 회사 단위로는 이 테이블로 대체 활용할 수 있다(PRD 5.4/5.5 참고).
 
 **company_insight_snapshots** — 재무/인력 건강도 (5.2). 값이 주기적으로 바뀌므로 스냅샷 이력으로 저장
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | company_id | BIGINT | FK → companies.id | |
@@ -121,7 +121,7 @@ erDiagram
 | UNIQUE | (company_id, snapshot_date) | | |
 
 **positions** — 공고 원본
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 원티드 position/job id |
 | company_id | BIGINT | FK → companies.id | |
@@ -134,14 +134,14 @@ erDiagram
 | full_location | VARCHAR(255) | | |
 | geo_lat / geo_lng | NUMERIC(9,6) | NULL 허용 | 출퇴근거리 근사 계산용. v1 상세조회 `address.geo_location.location.lat/lng`(확인 완료) |
 | annual_from / annual_to | INTEGER | NULL 허용 | 요구 연차 범위(신입=0). v1 상세조회 `annual_from`/`annual_to` |
-| intro / main_tasks / requirements / preferred_points / benefits / hire_rounds | TEXT | NULL 허용 | 공고 상세 텍스트(회사소개/주요업무/자격요건/우대사항/혜택/채용전형). v1 상세조회 `detail.*`. 5.6 액션 버튼이 `PATCH /recruit-company/position/{id}`를 호출할 때 "detail은 한 세트로 취급"되므로 이 필드들을 먼저 저장해둬야 부분 수정 시 나머지 값을 그대로 되돌려보낼 수 있다 |
+| intro / main_tasks / requirements / preferred_points / benefits / hire_rounds | TEXT | NULL 허용 | 공고 상세 텍스트(회사소개/주요업무/자격요건/우대사항/혜택/채용전형). v1 상세조회 `detail.*`. 5.6 액션 버튼이 `PATCH /recruit-company/position/{id}`를 호출할 때 "detail은 한 세트로 취급"되므로 이 필드들을 먼저 저장해둑어야 부분 수정 시 나머지 값을 그대로 되돌려보낼 수 있다 |
 | reward_total | INTEGER | | 추천 보상금 합계(원) — 급여 아님 |
 | reward_recommender | INTEGER | | |
 | reward_recommendee | INTEGER | | |
 | synced_at | TIMESTAMPTZ | NOT NULL | |
 
 **tags** — 직군/직무/스킬/매력 태그 마스터
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 원티드 tag_id |
 | tag_type | VARCHAR(20) | NOT NULL, CHECK IN ('category','subcategory','skill','attraction') | |
@@ -149,7 +149,7 @@ erDiagram
 | parent_tag_id | BIGINT | FK → tags.id, NULL 허용 | category의 하위 subcategory 연결용 |
 
 **position_tags** — 공고-태그 다대다 (직군/스킬/매력 태그 공용)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | position_id | BIGINT | FK → positions.id | |
 | tag_id | BIGINT | FK → tags.id | |
@@ -158,10 +158,10 @@ erDiagram
 > ⚠️ v2 `/jobs` 목록 응답(`JobListDetailResponseSerializer`)에는 `category_tags`만 필드로 내려온다. 태그 종류별로 실제 확보 경로가 다르다:
 > - **category/subcategory**: v2 목록 응답에 바로 포함 → 지금처럼 실시간 배치로 채움
 > - **skill**: v2 목록엔 없지만 v1 `GET /jobs/{job_id}` 상세조회의 `skill_tags` 필드에 존재한다. 다만 실제 응답을 까보니 **`skill_tags[].id`가 전부 `null`로 내려온다** — 안정적인 Wanted tag_id가 없다는 뜻이라, `tags`/`position_tags`(실제 tag_id 기반) 체계에는 넣지 않고 **이름 기반의 `position_skill_tags` 테이블로 별도 관리**한다(아래 참고)
-> - **attraction**: v1/v2 어느 응답에도 공고 단위로 내려오는 필드가 없다. `/tags/attractions`(마스터 목록)와 v2 검색 필터(`attraction_tags=`)로만 존재하므로, 태그ID별로 필터 질의해서 결과에 포함되는 포지션ID를 역산하는 방식(태그 수만큼 N회 호출)만 가능하다 — 비용 대비 실효성을 검증하기 전까진 `position_tags`에 attraction 타입 행을 채우지 않는다. 대신 회사 단위로는 `company_tags`에 유사한 배지(재택근무 등)가 실제로 존재한다(3.2절 상단 참고)
+> - **attraction**: v1/v2 어느 응답에도 공고 단위로 내려오는 필드가 없다. `/tags/attractions`(마스터 목록)와 v2 검색 필터(`attraction_tags=`)로만 존재하므로, 태그ID별로 필터 질의해서 결과에 포함되는 포지션ID를 역산하는 방식(태그 수만큼 N회 호출)만 가능하다 — 비용 대비 실효성을 검증하기 전까지는 `position_tags`에 attraction 타입 행을 채우지 않는다. 대신 회사 단위로는 `company_tags`에 유사한 배지(재택근무 등)가 실제로 존재한다(3.2절 상단 참고)
 
 **position_skill_tags** — 공고별 스킬 태그 (이름 기반, 5.0-C/5.1/5.7)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | position_id | BIGINT | FK → positions.id | |
 | skill_name | VARCHAR(100) | NOT NULL | 원티드 `skill_tags[].title`. `id`가 없어 이름 자체를 키로 사용 |
@@ -170,7 +170,7 @@ erDiagram
 > `tags` 마스터에 스킬 태그를 편입하지 않는 이유: `tags.id`는 원티드가 발급한 안정적 tag_id를 그대로 쓰는 게 전제인데, 스킬은 그 id가 없다. 같은 이름이라도 표기가 다르면(`Node.js` vs `NodeJS`) 다른 스킬로 집계되는 한계가 있으며, 이는 5.7 스킬 태그 트렌드 집계 시 이름 정규화(대소문자/특수문자 통일 등)가 필요하다는 뜻이다.
 
 **position_additional_apply_types** — 우대조건 (5.3)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | position_id | BIGINT | FK → positions.id | |
 | apply_type | VARCHAR(20) | CHECK IN ('foreigner','alternative_military','disabled_person') | |
@@ -179,7 +179,7 @@ erDiagram
 ### 3.3 자체 배치 집계 (API가 제공하지 않는 시계열)
 
 **category_daily_snapshot** — 마켓 홈 Zoom-out/Zoom-in용 일별 집계 (5.0-A, 5.0-B)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | snapshot_date | DATE | NOT NULL | |
@@ -193,10 +193,10 @@ erDiagram
 | UNIQUE | (snapshot_date, category_tag_id, region) | | |
 
 **skill_tag_trend** — 스킬 태그 트렌드 (5.7, 공용 모듈 — 6장)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| skill_name | VARCHAR(100) | NOT NULL | `position_skill_tags.skill_name`과 동일한 이름 기반 키. 스킬은 원티드가 발급한 안정적 `tag_id`가 없어(3.2절 참고) `tags.id` FK 대신 이름 문자열을 그대로 쓴다 |
+| skill_name | VARCHAR(100) | NOT NULL | `position_skill_tags.skill_name`과 동일한 이름 기반 키. 스킬은 원티드가 발급한 안정적 `tag_id`가 없어(3.2절 참고) `tags.id` FK 대신 이름 문자열을 그대로 쒄2다 |
 | period_type | VARCHAR(10) | CHECK IN ('week','quarter') | |
 | period_start | DATE | NOT NULL | |
 | mention_count | INTEGER | NOT NULL | 해당 기간 `position_skill_tags` 등장 수 |
@@ -205,7 +205,7 @@ erDiagram
 | UNIQUE | (skill_name, period_type, period_start) | | |
 
 **category_market_stats** — 공고 경쟁력 진단용 시장 벤치마크 (5.5)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | category_tag_id | BIGINT | FK → tags.id | `tags.tag_type='category'`(상위 직군) |
@@ -219,7 +219,7 @@ erDiagram
 | UNIQUE | (category_tag_id, snapshot_date) | | |
 
 **tag_effect_stats** — 매력 태그별 성과 상관관계 (5.5)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | tag_id | BIGINT | FK → tags.id | `tags.tag_type='attraction'` |
 | tag_name | VARCHAR(100) | NULL 허용 | `tags.name` 비정규화 캐시 |
@@ -234,7 +234,7 @@ erDiagram
 > ⚠️ 아래 테이블은 v1 `/ats/*`, `/recruit-company/*` 엔드포인트로 채워지는데, 이 엔드포인트들은 공용 `Wanted_ClientId_API_KEY`/`Wanted_ClientSecret_API_KEY`(헤더 `wanted-client-id`/`wanted-client-secret`) 외에 **기업별로 별도 발급되는 `X-Wanted-Dashboard-Service-Key` 헤더가 추가로 필요**하다(`json.v1`의 `/recruit-company/company/info`, `/ats/positions` 등 참조). 현재 `.env`에는 이 키가 없으므로, 발급 전까지는 3.4 테이블에 실데이터를 채울 수 없다 — 스키마만 선반영해둔다.
 
 **applications**
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 원티드 application id |
 | position_id | BIGINT | FK → positions.id | |
@@ -248,7 +248,7 @@ erDiagram
 | status_updated_at | TIMESTAMPTZ | | 5.6 정체/지연 판단 기준 |
 
 **application_status_history** — 상태 변경 이력 (5.6 정체·형평성 판단 근거)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | application_id | BIGINT | FK → applications.id | |
@@ -257,10 +257,10 @@ erDiagram
 | changed_at | TIMESTAMPTZ | NOT NULL | |
 | changed_by_user_id | BIGINT | FK → users.id, NULL 허용 | |
 
-> ⚠️ 원티드 API는 지원서의 **현재 `status` 한 값만** 제공하며, 상태 변경 이력을 돌려주는 필드/엔드포인트가 없다. 이 테이블은 API 응답을 그대로 옮겨 담는 게 아니라, **동기화 배치가 매번 폴링할 때 직전에 저장해둔 `applications.status`와 이번에 받은 값을 비교해서 다르면 직접 한 행을 생성**하는 방식으로만 채워진다. 폴링 주기(예: 1시간)보다 짧게 여러 번 상태가 바뀌면 중간 전이는 유실된다.
+> ⚠️ 원티드 API는 지원서의 **현재 `status` 한 값만** 제공하며, 상태 변경 이력을 돌려주는 필드/엔드포인트가 없다. 이 테이블은 API 응답을 그대로 옥겨 담는 게 아니라, **동기화 배치가 매번 팟링할 때 직전에 저장해둔 `applications.status`와 이번에 받은 값을 비교해서 다르면 직접 한 행을 생성**하는 방식으로만 채워진다. 팟링 주기(예: 1시간)보다 짧게 여러 번 상태가 바뀌면 중간 전이는 유실된다.
 
 **resumes**
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | resume_key | VARCHAR(100) | PK | 스토리지 참조 키 |
 | application_id | BIGINT | FK → applications.id | |
@@ -271,14 +271,14 @@ erDiagram
 ### 3.5 채용자 전용 — 목표달성/위험알림 (5.6)
 
 **position_hiring_goals** — 목표 달성 예측 스캔바 기준값
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | position_id | BIGINT | PK, FK → positions.id | |
 | target_applicant_count | INTEGER | NOT NULL | 목표 지원자 수 (채용담당자 입력) |
 | target_date | DATE | | 목표 달성 희망일(보통 due_time과 동일) |
 
 **risk_alerts**
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | position_id | BIGINT | FK → positions.id | |
@@ -291,7 +291,7 @@ erDiagram
 | resolved_at | TIMESTAMPTZ | NULL 허용 | |
 
 **alert_actions** — 액션 버튼 클릭 이력 (성공지표 10장의 클릭률 산출 근거)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | risk_alert_id | BIGINT | FK → risk_alerts.id | |
@@ -302,7 +302,7 @@ erDiagram
 ### 3.6 지원자 개인화 (5.4)
 
 **applicant_priority_factors** — 우선순위 설정 (직종/연봉/워라밸/출퇴근거리)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | applicant_profile_id | BIGINT | FK → applicant_profiles.id | |
@@ -313,14 +313,14 @@ erDiagram
 | UNIQUE | (applicant_profile_id, factor_key) | | |
 
 **watchlist_companies** — 기업 건강도 비교 탭에서 선택/저장한 관심기업 (5.2)
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | applicant_profile_id | BIGINT | FK → applicant_profiles.id | |
 | company_id | BIGINT | FK → companies.id | |
 | PRIMARY KEY | (applicant_profile_id, company_id) | | |
 
 **bookmarked_positions** — 마켓 홈 Action 영역에서 저장한 공고
-| 컬럼 | 타입 | 제약 | 설명 |
+| 컴럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | applicant_profile_id | BIGINT | FK → applicant_profiles.id | |
 | position_id | BIGINT | FK → positions.id | |
@@ -372,8 +372,9 @@ erDiagram
 
 | 키 | 용도 | 채워지는 테이블 |
 |---|---|---|
-| `Wanted_ClientId_API_KEY` / `Wanted_ClientSecret_API_KEY` | 원티드 공용 OpenAPI 인증 헤더(`wanted-client-id`/`wanted-client-secret`). v1·v2 공통 엔드포인트에서 사용 | v2 `/jobs` → `companies`, `positions`, `tags`(category/subcategory), `position_tags`, `position_additional_apply_types` / v1 `/jobs/{id}` 상세조회 → `positions.geo_lat/lng`·상세 텍스트 필드, `position_skill_tags`, `company_tags`, `companies`(registration_number/link/description 보강) / v1 `/insight/company` → `company_insight_snapshots` |
+| `Wanted_ClientId_API_KEY` / `Wanted_ClientSecret_API_KEY` | 원티드 공용 OpenAPI 인증 헤더(`wanted-client-id`/`wanted-client-secret`). v1·v2 공통 엔드포인트에서 사용 | v2 `/jobs` → `companies`, `positions`, `tags`(category/subcategory), `position_tags`, `position_additional_apply_types` / v1 `/jobs/{id}` 상세조회 → `positions.geo_lat/lng`·상세 텍스트 필드, `position_skill_tags`, `company_tags`, `companies`(registration_number/link/description 보강) |
 | *(미보유)* `X-Wanted-Dashboard-Service-Key` | 기업별 ATS 대시보드 연동 키. 공용 Client ID/Secret과 별도로, 원티드에서 기업 단위로 추가 발급받아야 함 | v1 `/ats/*`, `/recruit-company/*` → `applications`, `application_status_history`, `resumes`, `position_hiring_goals`(3.4절) — **현재 키 미보유로 실데이터 연동 불가, 스키마만 대기 상태** |
+| *(권한 미보유)* v1 `/insight/company` (같은 공용 Client ID/Secret 헤더 사용, 별도 키 아님) | 회사 재무·인력 지표(`biz_number` 쿼리) | `company_insight_snapshots` — **2026-07-15 실제 호출 검증: 같은 키로 `/jobs/{id}` 등은 200 정상 응답하지만, 이 엔드포인트만 전량 401 `"No permission -- see authorization schemes"` 반환. 즉 키 자체가 아니라 이 엔드포인트에 대한 권한(permission scope)이 미승인 상태 — ATS 키 미보유와는 별개의 차단 사유.** 원티드 측에 Insight 권한 추가 신청 필요 |
 | `Map_API_KEY` (카카오 디벨로퍼스 REST API 키) | 카카오 로컬 API(주소→좌표 지오코딩). 서버에서만 호출, 도메인 제한 없이 키 값 자체가 비밀값 | `positions.geo_lat/geo_lng`, `applicant_profiles.home_geo_lat/lng` |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | 실제 DB 호스팅(Supabase Postgres) 접속 정보. anon 키는 공개용이며 RLS로 접근을 제어 | 전체 테이블의 물리적 저장소 |
 
@@ -391,17 +392,17 @@ erDiagram
 | `position_skill_tags` | ✅ 구현·적재 완료 (14,629건) | `job_details.csv`의 `skill_tags`(id=null 확인됨)를 이름 기반으로 적재. 신규 테이블 |
 | `position_additional_apply_types` | ✅ 구현·적재 완료 (1,836건) | |
 | `users` / `applicant_profiles` / `recruiter_profiles` | ⬜ 미구현 | 회원가입/로그인 기능 붙을 때 생성 |
-| `company_insight_snapshots` | ⬜ 미구현 | v1 `/insight/company` 배치 연동 필요 |
+| `company_insight_snapshots` | ⬜ 미구현 (차단됨) | v1 `/insight/company` 호출 시 전량 401 `"No permission -- see authorization schemes"` — 공용 Client ID/Secret에 Insight 권한이 없어서 발생(키 자체는 유효, 다른 v1 엔드포인트는 정상). 원티드 측 Insight 권한 신청 후 재시도 필요. 대상 회사 2,437건(등록번호 보유) 전량 시도해 확인함(2026-07-15) |
 | `category_daily_snapshot` / `skill_tag_trend` / `category_market_stats` / `tag_effect_stats` | ✅ 구현·적재 완료 (데모 데이터, 각 1,932/336/20/87건) | 9.1절 참고 |
 | `applications` 등 3.4절 ATS 테이블 | ⬜ 미구현 (차단됨) | `X-Wanted-Dashboard-Service-Key` 미보유로 보류 |
 | `position_hiring_goals` / `risk_alerts` / `alert_actions` | ⬜ 미구현 | 위 ATS 데이터 선행 필요 |
 | `applicant_priority_factors` / `watchlist_companies` / `bookmarked_positions` | ⬜ 미구현 | 프론트 기능 구현 시점에 생성 |
 
-RLS: 구현된 11개 테이블(원본 동기화 7개 + 자체 집계 데모 4개) 전부 RLS를 켜고 `select`만 공개(anon 허용) 정책을 걸어뒀다 — 프론트엔드(`supabase-js`, anon 키)는 읽기만 가능하고, 쓰기(동기화)는 서버 배치 스크립트 전용으로 남겨둔다. `companies.csv`/`jobs.csv`/`job_details.csv`/`attractions.csv`/`categories.csv` 5개 파일을 `load_full_dataset_to_supabase.py`로 일괄 적재했으며, 적재 중에만 anon 키 쓰기 정책을 임시로 열었다가 완료 후 다시 잠갔다(반복 실행되는 자동 배치는 아직 없고 수동 1회성 적재). 자체 집계 데모 4개 테이블(`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`)은 Supabase 마이그레이션으로 직접 생성·적재했다(9.1절 참고).
+RLS: 구현된 11개 테이블(원본 동기화 7개 + 자체 집계 데모 4개) 전부 RLS를 켜고 `select`만 공개(anon 허용) 정책을 걸어둔다 — 프론트엔드(`supabase-js`, anon 키)는 읽기만 가능하고, 쓰기(동기화)는 서버 배치 스크립트 전용으로 남겨둔다. `companies.csv`/`jobs.csv`/`job_details.csv`/`attractions.csv`/`categories.csv` 5개 파일을 `load_full_dataset_to_supabase.py`로 일괄 적재했으며, 적재 중에만 anon 키 쓰기 정책을 임시로 열었다가 완료 후 다시 잠았다(반복 실행되는 자동 배치는 아직 없고 수동 1회성 적재). 자체 집계 데모 4개 테이블(`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`)은 Supabase 마이그레이션으로 직접 생성·적재했다(9.1절 참고).
 
 ### 9.1 자체 배치 집계 4종 — 데모 데이터 (`build_demo_db.py`, Supabase 적재 완료)
 
-`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`는 시계열 축적이 필요해 아직 실제 배치 스케줄러가 없다(6장). 시연을 위해 `build_demo_db.py`가 Supabase(`team7-wanted`)에 이미 적재된 `positions`/`position_tags`/`position_skill_tags`/`tags`를 조회해 먼저 로컬 SQLite 파일(`demo.db`)을 만들고, 그 내용을 `demo_category_daily_snapshot.csv`/`demo_skill_tag_trend.csv`/`demo_category_market_stats.csv`/`demo_tag_effect_stats.csv`로 내보냈다. 이후 이 4개 CSV를 Supabase에도 그대로 적재해 팀원들이 공유 DB에서 바로 조회할 수 있게 했다 — 스키마는 3.3절 정의를 그대로 따르고(비정규화된 `category_name`/`skill_name`/`tag_name` 컬럼과 `is_demo` 플래그 포함), RLS는 다른 7개 테이블과 동일하게 `select`만 공개하는 "public read" 정책을 걸었다(anon 키로는 읽기만 가능).
+`category_daily_snapshot`/`skill_tag_trend`/`category_market_stats`/`tag_effect_stats`는 시계열 축적이 필요해 아직 실제 배치 스케쥴러가 없다(6장). 시연을 위해 `build_demo_db.py`가 Supabase(`team7-wanted`)에 이미 적재된 `positions`/`position_tags`/`position_skill_tags`/`tags`를 조회해 먼저 로컬 SQLite 파일(`demo.db`)을 만들고, 그 내용을 `demo_category_daily_snapshot.csv`/`demo_skill_tag_trend.csv`/`demo_category_market_stats.csv`/`demo_tag_effect_stats.csv`로 내보냈다. 이후 이 4개 CSV를 Supabase에도 그대로 적재해 팀원들이 공유 DB에서 바로 조회할 수 있게 했다 — 스키마는 3.3절 정의를 그대로 따르고(비정규화된 `category_name`/`skill_name`/`tag_name` 컴럼과 `is_demo` 플래그 포함), RLS는 다른 7개 테이블과 동일하게 `select`만 공개하는 "public read" 정책을 걸었다(anon 키로는 읽기만 가능).
 
 각 테이블마다 행 단위 `is_demo` 플래그로 "오늘자 실측 앵커"(false)와 "합성/창작값"(true)을 구분한다. 재현 가능하도록 고정 시드(`random.seed(42)`)를 사용한다.
 
@@ -412,4 +413,4 @@ RLS: 구현된 11개 테이블(원본 동기화 7개 + 자체 집계 데모 4개
 | `category_market_stats` | 20건 | 카테고리(`tag_type='category'`) 전체 20개, 단일 스냅샷(2026-07-14). `reward_avg`/`p50`/`p90`은 `positions.reward_total`을 실제 집계한 값이라 전부 `is_demo=false`. `common_attraction_tag_ids`는 근거가 없어 전부 NULL |
 | `tag_effect_stats` | 87건 | 매력 태그(`tag_type='attraction'`) 87개 전체, 단일 스냅샷. `avg_applicants`/`avg_pass_rate`는 지원자 데이터 자체가 없어(3.4절 차단) 전부 창작값(`is_demo=true`) — "재택근무"/"스톡옵션" 등 특정 키워드가 포함된 태그는 지원자 수·합격률을 의도적으로 더 높게 만들어 시연용 스토리를 부여했다 |
 
-지금은 위 스냅샷 1회분만 Supabase에 들어가 있고, 이후 반복 실행되는 자동 배치는 없다. 데모 데이터를 실측 데이터로 전환하려면: (1) `category_daily_snapshot`/`skill_tag_trend`는 배치 스케줄러를 구축해 매일/매주 반복 실행하며 `is_demo=true` 과거 행을 실측 스냅샷으로 하나씩 대체해야 하고, (2) `tag_effect_stats`는 `X-Wanted-Dashboard-Service-Key` 확보 후 실제 지원자 데이터가 쌓여야 창작값을 실측값으로 교체할 수 있다.
+지금은 위 스냅샷 1회분만 Supabase에 들어가 있고, 이후 반복 실행되는 자동 배치는 없다. 데모 데이터를 실측 데이터로 전환하려면: (1) `category_daily_snapshot`/`skill_tag_trend`는 배치 스케쥴러를 구축해 매일/매주 반복 실행하며 `is_demo=true` 과거 행을 실측 스냅샷으로 하나씨 대체해야 하고, (2) `tag_effect_stats`는 `X-Wanted-Dashboard-Service-Key` 확보 후 실제 지원자 데이터가 쌍여야 창작값을 실측값으로 교체할 수 있다.
