@@ -1,5 +1,5 @@
 // 원본 테이블(raw rows) → 화면에서 바로 쓰기 좋은 형태로 조인/비정규화하는 계층.
-// 서버에 RPC/뷰가 없으므로 이 단계에서 클라이언트 메모리에 조인 맵을 만들다.
+// 서버에 RPC/뷰가 없으므로 이 단계에서 클라이언트 메모리에 조인 맵을 만든다.
 import { extractDistrict, daysUntil } from './api.js';
 
 export function buildModel(raw) {
