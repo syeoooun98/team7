@@ -14,6 +14,8 @@ import {
   computeSkillMentionRanking,
   recommendPositions,
   computeCategorySkillFrequency,
+  groupSkillRanking,
+  getCertSuggestion,
   computeCategoryAnnualStats,
   computeRoadmap,
   computeCompanyOptions,
@@ -26,6 +28,7 @@ import {
   renderHBarChart,
   renderSparkline,
   renderGaugeBar,
+  renderYearsGapBar,
   colorForKey,
   formatWon,
   formatDate,
@@ -48,13 +51,14 @@ const state = {
     q: '',
     categoryId: 'all',
     subTagIds: new Set(),
+    expandedSubTagGroups: new Set(),
     regions: new Set(),
     applyTypes: new Set(),
     urgentOnly: false,
     sort: 'deadline',
   },
   searchVisibleCount: 24,
-  roadmap: { categoryId: null, years: 0, mySkills: new Set() },
+  roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
   diagnosis: { companyId: null, positionId: null, companyTags: [] },
 };
 
@@ -310,22 +314,46 @@ function renderRoadmapSkillChips() {
     return;
   }
 
-  container.innerHTML = top
-    .map(
-      (s) => `
-      <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
-        ${escapeHTML(s.name)} <span>${s.count}</span>
-      </button>
-    `
-    )
+  const groups = groupSkillRanking(top);
+
+  const chipHTML = (s) => `
+    <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
+      ${escapeHTML(s.name)} <span>${s.count}</span>
+    </button>
+  `;
+
+  container.innerHTML = groups
+    .map((g) => {
+      const expanded = state.roadmap.expandedSkillGroups.has(g.key);
+      const selectedCount = g.items.filter((s) => state.roadmap.mySkills.has(s.name)).length;
+      return `
+      <div class="skill-group-block">
+        <button type="button" class="skill-group-header ${expanded ? 'skill-group-header--open' : ''}" data-group="${g.key}">
+          <span class="skill-group-header__arrow">▸</span>
+          <span class="skill-group-header__label">${escapeHTML(g.label)}</span>
+          <span class="skill-group-header__count">${g.items.length}개${selectedCount ? ` · 선택 ${selectedCount}` : ''}</span>
+        </button>
+        <div class="chip-group skill-group-body ${expanded ? '' : 'skill-group-body--collapsed'}">${g.items.map(chipHTML).join('')}</div>
+      </div>
+    `;
+    })
     .join('');
+
+  $$('.skill-group-header', container).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.group;
+      if (state.roadmap.expandedSkillGroups.has(key)) state.roadmap.expandedSkillGroups.delete(key);
+      else state.roadmap.expandedSkillGroups.add(key);
+      renderRoadmapSkillChips();
+    });
+  });
 
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const skill = btn.dataset.skill;
       if (state.roadmap.mySkills.has(skill)) state.roadmap.mySkills.delete(skill);
       else state.roadmap.mySkills.add(skill);
-      btn.classList.toggle('chip-toggle--active');
+      renderRoadmapSkillChips();
       renderRoadmapOutput();
     });
   });
@@ -346,32 +374,20 @@ function renderRoadmapOutput() {
     risingSkillNames: risingSet,
   });
 
-  const gapText =
-    annual.avgFrom != null
-      ? `${(years - annual.avgFrom).toFixed(1)}년 ${years - annual.avgFrom >= 0 ? '초과' : '부족'}`
-      : '데이터 없음';
-
   $('#roadmap-kpis').innerHTML = `
-    <div class="kpi-card">
-      <p class="kpi-label">직군 평균 요구 연차</p>
-      <p class="kpi-value">${annual.avgFrom != null ? annual.avgFrom.toFixed(1) : '-'}<span class="kpi-unit">년</span></p>
-      <p class="kpi-sub">표본 ${annual.sample.toLocaleString()}건 / 전체 ${annual.totalInCategory.toLocaleString()}건 (연차 정보 있는 공고만)</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">내 연차 대비 갭</p>
-      <p class="kpi-value">${gapText}</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
-      <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
-      <p class="kpi-sub">보유 ${roadmap.coveredSkillCount} / 요구 ${roadmap.requiredSkillCount}종</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">평균연봉 대비 비교</p>
-      <p class="kpi-value kpi-value--muted">준비 중</p>
-      <p class="kpi-sub">포지션 단위 연봉 데이터가 API에 없어 미제공</p>
+    <div class="kpi-card kpi-card--wide">
+      <p class="kpi-label">직군 평균 요구 연차 대비</p>
+      <div id="roadmap-years-gap"></div>
     </div>
   `;
+
+  renderYearsGapBar($('#roadmap-years-gap'), {
+    avgYears: annual.avgFrom,
+    myYears: years,
+    onChange: (newYears) => {
+      state.roadmap.years = newYears;
+    },
+  });
 
   const missingContainer = $('#roadmap-missing-skills');
   if (roadmap.missingTop3.length === 0) {
@@ -386,6 +402,40 @@ function renderRoadmapOutput() {
         </div>
       `
       )
+      .join('');
+  }
+
+  $('#roadmap-skill-coverage').innerHTML = `
+    <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
+    <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
+    <p class="kpi-sub">보유 ${roadmap.coveredSkillCount} / 요구 ${roadmap.requiredSkillCount}종</p>
+  `;
+
+  const certContainer = $('#roadmap-cert-roadmap');
+  if (roadmap.missingTop3.length === 0) {
+    certContainer.innerHTML = '<div class="empty-state empty-state--inline">추천할 미보유 스킬이 없습니다.</div>';
+  } else {
+    certContainer.innerHTML = roadmap.missingTop3
+      .map((m) => {
+        const suggestion = getCertSuggestion(m.name);
+        if (!suggestion) {
+          return `
+            <div class="cert-roadmap-item">
+              <p class="cert-roadmap-item__skill">${escapeHTML(m.name)}</p>
+              <p class="cert-roadmap-item__empty">관련 자격증 정보가 아직 없습니다.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="cert-roadmap-item">
+            <p class="cert-roadmap-item__skill">${escapeHTML(m.name)}</p>
+            <div class="cert-roadmap-item__chips">
+              ${suggestion.certs.map((c) => `<span class="tag-chip">${escapeHTML(c)}</span>`).join('')}
+            </div>
+            <p class="cert-roadmap-item__note">${escapeHTML(suggestion.note)}</p>
+          </div>
+        `;
+      })
       .join('');
   }
 
@@ -412,25 +462,41 @@ function setupRoadmapListeners() {
     renderRoadmapSkillChips();
     renderRoadmapOutput();
   });
-
-  $('#roadmap-years').addEventListener('input', (e) => {
-    state.roadmap.years = Number(e.target.value) || 0;
-    renderRoadmapOutput();
-  });
 }
 
 /* ==================================================================== */
 /* 지원자 입장 — 3. 우대조건 특화 필터 (+ 공고 검색)                          */
 /* ==================================================================== */
 
-function getSubTagOptions(scopedPositions) {
-  const map = new Map();
+/**
+ * 직무 태그(subcategory)를 소속 직군(category, 산업 분야)별로 묶는다.
+ * 한 subcategory 태그는 tags.parent_tag_id로 항상 하나의 category에 속하므로,
+ * 그 태그가 붙은 공고의 category를 그대로 그룹 키로 쓰면 된다.
+ */
+function getGroupedSubTagOptions(scopedPositions) {
+  const groups = new Map(); // categoryId -> { categoryId, categoryName, items: Map<subTagId, {id,name,count}> }
+
   scopedPositions.forEach((p) => {
+    const categoryId = p.category.id ?? 'uncategorized';
+    const categoryName = p.category.name || '미분류';
+    if (!groups.has(categoryId)) {
+      groups.set(categoryId, { categoryId, categoryName, items: new Map() });
+    }
+    const group = groups.get(categoryId);
     p.subTags.forEach((t) => {
-      map.set(t.id, { id: t.id, name: t.name, count: (map.get(t.id)?.count || 0) + 1 });
+      const prev = group.items.get(t.id);
+      group.items.set(t.id, { id: t.id, name: t.name, count: (prev?.count || 0) + 1 });
     });
   });
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+
+  return Array.from(groups.values())
+    .map((g) => {
+      const items = Array.from(g.items.values()).sort((a, b) => b.count - a.count);
+      const totalCount = items.reduce((sum, i) => sum + i.count, 0);
+      return { categoryId: g.categoryId, categoryName: g.categoryName, items, totalCount };
+    })
+    .filter((g) => g.items.length > 0)
+    .sort((a, b) => b.totalCount - a.totalCount);
 }
 
 function applyFilters(positions, filters) {
@@ -568,30 +634,64 @@ function renderSubTagChips() {
   const scoped =
     state.filters.categoryId === 'all' ? positions : positions.filter((p) => p.category.id === state.filters.categoryId);
 
-  const options = getSubTagOptions(scoped);
+  const groups = getGroupedSubTagOptions(scoped);
   const container = $('#filter-subtags');
 
-  if (options.length === 0) {
+  if (groups.length === 0) {
     container.innerHTML = '<p class="empty-state empty-state--inline">태그가 없습니다.</p>';
     return;
   }
 
-  container.innerHTML = options
-    .map(
-      (opt) => `
-    <button type="button" class="chip-toggle ${state.filters.subTagIds.has(opt.id) ? 'chip-toggle--active' : ''}" data-tag-id="${opt.id}">
-      ${escapeHTML(opt.name)} <span>${opt.count}</span>
-    </button>
-  `
-    )
+  // 직군(대분류)을 이미 하나로 좁혀놓은 상태라 그룹이 1개뿐이면, 굳이 또 접어두지 않고 바로 펼쳐서 보여준다.
+  const singleGroup = groups.length === 1;
+
+  container.innerHTML = groups
+    .map((g) => {
+      const groupKey = String(g.categoryId);
+      const expanded = singleGroup || state.filters.expandedSubTagGroups.has(groupKey);
+      const selectedCount = g.items.filter((i) => state.filters.subTagIds.has(i.id)).length;
+      const chipsHTML = g.items
+        .map(
+          (opt) => `
+        <button type="button" class="chip-toggle ${state.filters.subTagIds.has(opt.id) ? 'chip-toggle--active' : ''}" data-tag-id="${opt.id}">
+          ${escapeHTML(opt.name)} <span>${opt.count}</span>
+        </button>
+      `
+        )
+        .join('');
+
+      if (singleGroup) {
+        return `<div class="chip-group">${chipsHTML}</div>`;
+      }
+
+      return `
+        <div class="skill-group-block">
+          <button type="button" class="skill-group-header ${expanded ? 'skill-group-header--open' : ''}" data-subtag-group="${groupKey}">
+            <span class="skill-group-header__arrow">▸</span>
+            <span class="skill-group-header__label">${escapeHTML(g.categoryName)}</span>
+            <span class="skill-group-header__count">${g.items.length}개${selectedCount ? ` · 선택 ${selectedCount}` : ''}</span>
+          </button>
+          <div class="chip-group skill-group-body ${expanded ? '' : 'skill-group-body--collapsed'}">${chipsHTML}</div>
+        </div>
+      `;
+    })
     .join('');
+
+  $$('.skill-group-header', container).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.subtagGroup;
+      if (state.filters.expandedSubTagGroups.has(key)) state.filters.expandedSubTagGroups.delete(key);
+      else state.filters.expandedSubTagGroups.add(key);
+      renderSubTagChips();
+    });
+  });
 
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.tagId);
       if (state.filters.subTagIds.has(id)) state.filters.subTagIds.delete(id);
       else state.filters.subTagIds.add(id);
-      btn.classList.toggle('chip-toggle--active');
+      renderSubTagChips();
       renderSearchResults();
     });
   });

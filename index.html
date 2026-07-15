@@ -148,21 +148,11 @@
 
         <!-- 1. 취준 로드맵 -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="roadmap">
-          <div class="info-banner">
-            직군별 요구 스킬은 <strong>position_skill_tags</strong>(14,629건, 이름 기반 집계)를 사용합니다.
-            포지션 단위 연봉·요구연차 데이터는 API 특성상 근사치이며(연차는 <code>positions.annual_from/to</code> 값이 있는 공고에 한해 집계),
-            회사 단위 평균연봉(<code>company_insight_snapshots</code>)은 아직 미구현이라 이번 버전에서는 다루지 않습니다.
-          </div>
-
           <div class="roadmap-layout">
             <aside class="roadmap-input-panel">
               <div class="filter-block">
                 <label class="filter-title" for="roadmap-category">희망 직군</label>
                 <select id="roadmap-category" class="filter-select"></select>
-              </div>
-              <div class="filter-block">
-                <label class="filter-title" for="roadmap-years">현재 경력 연차</label>
-                <input type="number" id="roadmap-years" class="filter-search-input" min="0" max="30" step="0.5" value="0" />
               </div>
               <div class="filter-block">
                 <p class="filter-title">보유 스킬 <span class="filter-title__hint">(선택 직군 요구빈도 TOP 30 중 선택)</span></p>
@@ -179,6 +169,15 @@
                 <div id="roadmap-missing-skills" class="mover-list"></div>
               </section>
 
+              <div class="kpi-grid kpi-grid--roadmap kpi-grid--below-missing">
+                <div id="roadmap-skill-coverage" class="kpi-card kpi-card--fit"></div>
+                <div class="kpi-card">
+                  <p class="kpi-label">미보유 스킬 학습 로드맵 (관련 자격증)</p>
+                  <div id="roadmap-cert-roadmap"></div>
+                  <p class="kpi-sub kpi-sub--faint">참고용 큐레이션 정보이며, 실제 지원자·채용 통계가 아닙니다.</p>
+                </div>
+              </div>
+
               <section class="section-block">
                 <h2>현재 스펙으로 지원 시 유리한 공고 TOP3</h2>
                 <p class="section-block__desc">보유 스킬과 매칭되는 스킬 태그 수가 많은 순으로 정렬했습니다.</p>
@@ -190,10 +189,6 @@
 
         <!-- 3. 우대조건 특화 필터 (+ 일반 공고 검색) -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="filter">
-          <div class="info-banner">
-            <strong>우대조건 특화 필터(PRD 5.3)</strong>: 외국인 우대 / 병역특례 / 장애인 우대 조건으로 공고를 좁혀볼 수 있습니다.
-            직군·지역·검색어 필터는 결과를 더 세밀하게 좁히기 위한 보조 기능입니다.
-          </div>
           <div class="search-layout">
             <aside id="filter-sidebar" class="filter-sidebar"></aside>
 
