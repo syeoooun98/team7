@@ -136,8 +136,6 @@ export function renderGaugeBar(container, percentile, options = {}) {
   container.appendChild(el);
 }
 
-<<<<<<< HEAD
-=======
 /**
  * 직군 평균 요구 연차와 내 연차를 같은 트랙 위 마커 두 개로 겹쳐서 갭을 한 번에 보여준다.
  * "내 연차" 마커는 드래그(마우스/터치)와 방향키로 직접 옮길 수 있는 슬라이더 겸용 컴포넌트다.
@@ -264,7 +262,6 @@ export function renderYearsGapBar(container, { avgYears, myYears, onChange } = {
   });
 }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 export function formatWon(amount) {
   if (amount == null) return '-';
   if (amount >= 10000) {

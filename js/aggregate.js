@@ -200,8 +200,6 @@ export function computeCategorySkillFrequency(positions, categoryId) {
   return { total, ranking };
 }
 
-<<<<<<< HEAD
-=======
 // 원티드 API는 스킬 태그를 "언어/프레임워크/DB" 같은 종류로 구분해서 주지 않는다(DB.md 3.2절 —
 // skill_tags에 안정적 분류 필드 자체가 없음). 그래서 실제로 자주 등장하는 스킬 이름을 수동으로
 // 묶어서 UI에서만 그룹핑한다. 목록에 없는 이름은 '기타'로 빠진다.
@@ -425,7 +423,6 @@ export function getCertSuggestion(skillName) {
   return null;
 }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 // annual_to=100은 "경력 상한 없음(무관)"을 뜻하는 원티드 API의 관례적 센티넬 값이라 평균 계산에서 제외한다.
 const ANNUAL_TO_UNLIMITED_SENTINEL = 99;
 

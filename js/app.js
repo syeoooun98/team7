@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { supabase } from './config.js';
 import { fetchAllRaw, fetchCompanyTagsByCompanyId, subscribeRealtime } from './api.js';
 import { buildModel } from './model.js';
@@ -9,11 +8,6 @@ import {
   subscribeBookmarkChanges,
 } from './bookmarks.js';
 import {
-=======
-import { fetchAllRaw, fetchCompanyTagsByCompanyId, subscribeRealtime } from './api.js';
-import { buildModel } from './model.js';
-import {
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   computeCategoryDistribution,
   computeRegionDistribution,
   computeDistrictDistribution,
@@ -27,11 +21,8 @@ import {
   computeSkillMentionRanking,
   recommendPositions,
   computeCategorySkillFrequency,
-<<<<<<< HEAD
-=======
   groupSkillRanking,
   getCertSuggestion,
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   computeCategoryAnnualStats,
   computeRoadmap,
   computeCompanyOptions,
@@ -44,10 +35,7 @@ import {
   renderHBarChart,
   renderSparkline,
   renderGaugeBar,
-<<<<<<< HEAD
-=======
   renderYearsGapBar,
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   colorForKey,
   formatWon,
   formatDate,
@@ -70,25 +58,17 @@ const state = {
     q: '',
     categoryId: 'all',
     subTagIds: new Set(),
-<<<<<<< HEAD
-=======
     expandedSubTagGroups: new Set(),
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
     regions: new Set(),
     applyTypes: new Set(),
     urgentOnly: false,
     sort: 'deadline',
   },
   searchVisibleCount: 24,
-<<<<<<< HEAD
-  roadmap: { categoryId: null, years: 0, mySkills: new Set() },
+  roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
   diagnosis: { companyId: null, positionId: null, companyTags: [] },
   applicantProfileId: null,
   bookmarkedPositionIds: new Set(),
-=======
-  roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
-  diagnosis: { companyId: null, positionId: null, companyTags: [] },
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 };
 
 const URGENT_WITHIN_DAYS = 7;
@@ -132,19 +112,15 @@ function showToast(message) {
 /* 공고 카드 렌더링 (여러 탭에서 공용)                                       */
 /* ------------------------------------------------------------------ */
 
-<<<<<<< HEAD
 function isPositionBookmarked(positionId) {
   return state.bookmarkedPositionIds.has(positionId);
 }
 
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 function positionCardHTML(p, opts = {}) {
   const badge = ddayBadge(p.daysLeft);
   const initial = (p.company.name || '?').charAt(0);
   const avatarColor = colorForKey(p.company.name);
   const logoUrl = p.company.logo_url;
-<<<<<<< HEAD
   const bookmarked = !!opts.isBookmarked;
   const bookmarkBtnHTML = `
     <button type="button" class="bookmark-btn ${bookmarked ? 'bookmark-btn--active' : ''}"
@@ -153,8 +129,6 @@ function positionCardHTML(p, opts = {}) {
       <span aria-hidden="true">${bookmarked ? '★' : '☆'}</span>
     </button>
   `;
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 
   const tagNames = [p.category.name, ...p.subTags.map((t) => t.name)].filter(Boolean).slice(0, 3);
   const tagsHTML = tagNames
@@ -196,14 +170,10 @@ function positionCardHTML(p, opts = {}) {
       <div class="position-card__meta">
         <span title="지역(구/시 단위는 주소 텍스트 기반 근사치)">📍 ${escapeHTML(p.district)} · ${escapeHTML(p.location || '-')}</span>
         <span>💰 ${formatWon(p.reward_total)}</span>
-<<<<<<< HEAD
         <span class="meta-dday-row">
           <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
           ${bookmarkBtnHTML}
         </span>
-=======
-        <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
       </div>
       <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
     </article>
@@ -321,25 +291,14 @@ function renderHome() {
 
   renderInlineSkillTrend($('#home-skill-trend'), computeSkillMovers(skillTagTrend, { topN: 2 }));
 
-<<<<<<< HEAD
-  const recommend = recommendPositions(positions, { limit: 4 });
+  const recommend = recommendPositions(positions, { limit: 6 });
   $('#recommend-list').innerHTML = recommend.length
     ? recommend.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">추천할 공고가 없습니다.</div>';
 
-  const urgent = getUrgentPositions(positions).slice(0, 4);
-  $('#urgent-list').innerHTML = urgent.length
-    ? urgent.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
-=======
-  const recommend = recommendPositions(positions, { limit: 6 });
-  $('#recommend-list').innerHTML = recommend.length
-    ? recommend.map((p) => positionCardHTML(p)).join('')
-    : '<div class="empty-state">추천할 공고가 없습니다.</div>';
-
   const urgent = getUrgentPositions(positions).slice(0, 6);
   $('#urgent-list').innerHTML = urgent.length
-    ? urgent.map((p) => positionCardHTML(p)).join('')
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
+    ? urgent.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">최근 7일 이내 마감되는 공고가 없습니다.</div>';
 }
 
@@ -379,18 +338,6 @@ function renderRoadmapSkillChips() {
     return;
   }
 
-<<<<<<< HEAD
-  container.innerHTML = top
-    .map(
-      (s) => `
-      <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
-        ${escapeHTML(s.name)} <span>${s.count}</span>
-      </button>
-    `
-    )
-    .join('');
-
-=======
   const groups = groupSkillRanking(top);
 
   const chipHTML = (s) => `
@@ -425,17 +372,12 @@ function renderRoadmapSkillChips() {
     });
   });
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const skill = btn.dataset.skill;
       if (state.roadmap.mySkills.has(skill)) state.roadmap.mySkills.delete(skill);
       else state.roadmap.mySkills.add(skill);
-<<<<<<< HEAD
-      btn.classList.toggle('chip-toggle--active');
-=======
       renderRoadmapSkillChips();
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
       renderRoadmapOutput();
     });
   });
@@ -456,35 +398,6 @@ function renderRoadmapOutput() {
     risingSkillNames: risingSet,
   });
 
-<<<<<<< HEAD
-  const gapText =
-    annual.avgFrom != null
-      ? `${(years - annual.avgFrom).toFixed(1)}년 ${years - annual.avgFrom >= 0 ? '초과' : '부족'}`
-      : '데이터 없음';
-
-  $('#roadmap-kpis').innerHTML = `
-    <div class="kpi-card">
-      <p class="kpi-label">직군 평균 요구 연차</p>
-      <p class="kpi-value">${annual.avgFrom != null ? annual.avgFrom.toFixed(1) : '-'}<span class="kpi-unit">년</span></p>
-      <p class="kpi-sub">표본 ${annual.sample.toLocaleString()}건 / 전체 ${annual.totalInCategory.toLocaleString()}건 (연차 정보 있는 공고만)</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">내 연차 대비 갭</p>
-      <p class="kpi-value">${gapText}</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
-      <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
-      <p class="kpi-sub">보유 ${roadmap.coveredSkillCount} / 요구 ${roadmap.requiredSkillCount}종</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">평균연봉 대비 비교</p>
-      <p class="kpi-value kpi-value--muted">준비 중</p>
-      <p class="kpi-sub">포지션 단위 연봉 데이터가 API에 없어 미제공</p>
-    </div>
-  `;
-
-=======
   $('#roadmap-kpis').innerHTML = `
     <div class="kpi-card kpi-card--wide">
       <p class="kpi-label">직군 평균 요구 연차 대비</p>
@@ -500,7 +413,6 @@ function renderRoadmapOutput() {
     },
   });
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   const missingContainer = $('#roadmap-missing-skills');
   if (roadmap.missingTop3.length === 0) {
     missingContainer.innerHTML = '<div class="empty-state">요구 스킬을 모두 보유하고 있거나, 집계된 스킬 데이터가 없습니다.</div>';
@@ -517,8 +429,6 @@ function renderRoadmapOutput() {
       .join('');
   }
 
-<<<<<<< HEAD
-=======
   $('#roadmap-skill-coverage').innerHTML = `
     <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
     <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
@@ -553,17 +463,12 @@ function renderRoadmapOutput() {
       .join('');
   }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   const topPositionsContainer = $('#roadmap-top-positions');
   if (roadmap.topPositions.length === 0) {
     topPositionsContainer.innerHTML = '<div class="empty-state">보유 스킬을 선택하면 매칭되는 공고가 표시됩니다.</div>';
   } else {
     topPositionsContainer.innerHTML = roadmap.topPositions
-<<<<<<< HEAD
       .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched, isBookmarked: isPositionBookmarked(x.position.id) }))
-=======
-      .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched }))
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
       .join('');
   }
 }
@@ -581,30 +486,12 @@ function setupRoadmapListeners() {
     renderRoadmapSkillChips();
     renderRoadmapOutput();
   });
-<<<<<<< HEAD
-
-  $('#roadmap-years').addEventListener('input', (e) => {
-    state.roadmap.years = Number(e.target.value) || 0;
-    renderRoadmapOutput();
-  });
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 }
 
 /* ==================================================================== */
 /* 지원자 입장 — 3. 우대조건 특화 필터 (+ 공고 검색)                          */
 /* ==================================================================== */
 
-<<<<<<< HEAD
-function getSubTagOptions(scopedPositions) {
-  const map = new Map();
-  scopedPositions.forEach((p) => {
-    p.subTags.forEach((t) => {
-      map.set(t.id, { id: t.id, name: t.name, count: (map.get(t.id)?.count || 0) + 1 });
-    });
-  });
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
-=======
 /**
  * 직무 태그(subcategory)를 소속 직군(category, 산업 분야)별로 묶는다.
  * 한 subcategory 태그는 tags.parent_tag_id로 항상 하나의 category에 속하므로,
@@ -634,7 +521,6 @@ function getGroupedSubTagOptions(scopedPositions) {
     })
     .filter((g) => g.items.length > 0)
     .sort((a, b) => b.totalCount - a.totalCount);
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 }
 
 function applyFilters(positions, filters) {
@@ -772,33 +658,14 @@ function renderSubTagChips() {
   const scoped =
     state.filters.categoryId === 'all' ? positions : positions.filter((p) => p.category.id === state.filters.categoryId);
 
-<<<<<<< HEAD
-  const options = getSubTagOptions(scoped);
-  const container = $('#filter-subtags');
-
-  if (options.length === 0) {
-=======
   const groups = getGroupedSubTagOptions(scoped);
   const container = $('#filter-subtags');
 
   if (groups.length === 0) {
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
     container.innerHTML = '<p class="empty-state empty-state--inline">태그가 없습니다.</p>';
     return;
   }
 
-<<<<<<< HEAD
-  container.innerHTML = options
-    .map(
-      (opt) => `
-    <button type="button" class="chip-toggle ${state.filters.subTagIds.has(opt.id) ? 'chip-toggle--active' : ''}" data-tag-id="${opt.id}">
-      ${escapeHTML(opt.name)} <span>${opt.count}</span>
-    </button>
-  `
-    )
-    .join('');
-
-=======
   // 직군(대분류)을 이미 하나로 좁혀놓은 상태라 그룹이 1개뿐이면, 굳이 또 접어두지 않고 바로 펼쳐서 보여준다.
   const singleGroup = groups.length === 1;
 
@@ -843,17 +710,12 @@ function renderSubTagChips() {
     });
   });
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.tagId);
       if (state.filters.subTagIds.has(id)) state.filters.subTagIds.delete(id);
       else state.filters.subTagIds.add(id);
-<<<<<<< HEAD
-      btn.classList.toggle('chip-toggle--active');
-=======
       renderSubTagChips();
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
       renderSearchResults();
     });
   });
@@ -924,11 +786,7 @@ function renderSearchResults() {
   const visible = filtered.slice(0, state.searchVisibleCount);
   const remaining = filtered.length - visible.length;
 
-<<<<<<< HEAD
   grid.innerHTML = visible.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('');
-=======
-  grid.innerHTML = visible.map((p) => positionCardHTML(p)).join('');
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 
   if (remaining > 0) {
     const loadMoreWrap = document.createElement('div');
@@ -1168,7 +1026,6 @@ async function loadData() {
   state.companyCount = state.model.companiesById.size;
 }
 
-<<<<<<< HEAD
 /* 현재 로그인한 지원자의 북마크 Set을 가져온다. 로그인 안 되어 있거나
    지원자 프로필이 없으면(채용자 계정 등) 빈 Set으로 처리하고 조용히 넘어간다
    (카드 렌더링 자체를 막을 이유는 없으므로 에러를 던지지 않는다). */
@@ -1264,8 +1121,6 @@ function setupAuthListener() {
   });
 }
 
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 function renderAll() {
   renderHome();
   initRoadmapDefaults();
@@ -1279,7 +1134,6 @@ async function init() {
   setLoading(true);
   setError(null);
   try {
-<<<<<<< HEAD
     await Promise.all([loadData(), loadBookmarkState()]);
     setLoading(false);
     renderAll();
@@ -1290,12 +1144,6 @@ async function init() {
     const { data: sessionData } = await supabase.auth.getSession();
     lastKnownAuthUserId = sessionData?.session?.user?.id || null;
     refreshBookmarkRealtimeSubscription();
-=======
-    await loadData();
-    setLoading(false);
-    renderAll();
-    $('#last-updated').textContent = `마지막 갱신: ${new Date().toLocaleTimeString('ko-KR')}`;
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   } catch (err) {
     console.error(err);
     setLoading(false);
@@ -1318,19 +1166,15 @@ function setupNav() {
     const jumpEl = e.target.closest('[data-jump-mode-tab]');
     if (jumpEl) {
       jumpModeTab(jumpEl.dataset.jumpModeTab);
-<<<<<<< HEAD
       return;
     }
     const bookmarkBtn = e.target.closest('.bookmark-btn');
     if (bookmarkBtn) {
       handleBookmarkButtonClick(bookmarkBtn);
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
     }
   });
 }
 
-<<<<<<< HEAD
 /* 공고 카드의 북마크 버튼 클릭 처리 (이벤트 위임으로 등록되어 카드가 몇 개든 리스너는 하나) */
 async function handleBookmarkButtonClick(btn) {
   const positionId = Number(btn.dataset.positionId);
@@ -1376,8 +1220,6 @@ async function handleBookmarkButtonClick(btn) {
   }
 }
 
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 function setupRealtime() {
   const debouncedRefresh = debounce(async () => {
     try {
@@ -1412,9 +1254,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNav();
   setupRetry();
   setupStaticListenersOnce();
-<<<<<<< HEAD
   setupAuthListener();
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   init().then(setupRealtime);
 });

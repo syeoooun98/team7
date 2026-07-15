@@ -323,13 +323,10 @@ code {
 
 .kpi-grid--roadmap { margin-bottom: 22px; }
 
-<<<<<<< HEAD
-=======
 /* "요구빈도 높은 미보유 스킬 TOP3" 카드 바로 아래에 오는 두 번째 KPI 행 —
    위쪽 행(연차갭)과 그 카드 사이의 간격(22px)과 동일하게 맞춘다. */
 .kpi-grid--below-missing { margin-top: 22px; }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 .kpi-card {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -338,14 +335,11 @@ code {
   border: 1px solid var(--color-border);
 }
 
-<<<<<<< HEAD
-=======
 .kpi-card--wide { grid-column: 1 / -1; }
 
 /* 그리드 기본 stretch를 깨고 내용 높이만큼만 차지하게 한다(옆 카드가 더 길어도 안 늘어남) */
 .kpi-card--fit { align-self: start; }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 .kpi-card--urgent {
   border-color: rgba(239, 68, 68, 0.35);
   background: linear-gradient(180deg, var(--color-surface), rgba(239, 68, 68, 0.08));
@@ -385,8 +379,6 @@ code {
 
 .kpi-sub--up { color: var(--color-accent); }
 .kpi-sub--down { color: var(--color-danger); }
-<<<<<<< HEAD
-=======
 .kpi-sub--faint { font-size: 10.5px; margin-top: 10px; }
 
 /* 미보유 스킬 학습 로드맵 (관련 자격증 제안) */
@@ -413,7 +405,6 @@ code {
   font-size: 12px;
   color: var(--color-text-faint);
 }
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 
 /* ==================== 섹션 공통 ==================== */
 .section-block { margin-bottom: 34px; }
@@ -602,8 +593,6 @@ code {
 }
 .gauge-readout strong { color: var(--color-text); }
 
-<<<<<<< HEAD
-=======
 /* 연차 갭 바 (직군 평균 요구 연차 vs 내 연차) — 이전 크기의 2/3 */
 .years-gap { display: flex; flex-direction: column; gap: 11px; margin-top: 11px; min-height: 160px; justify-content: center; }
 
@@ -705,7 +694,6 @@ code {
   color: var(--color-text);
 }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 /* 등락 리스트 (급등/급감 직군, 스킬 트렌드, 매력태그 제안 등 공용) */
 .mover-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -889,7 +877,6 @@ code {
   color: var(--color-text-muted);
   border-top: 1px dashed var(--color-border);
   padding-top: 10px;
-<<<<<<< HEAD
   margin-top: auto;
 }
 
@@ -935,13 +922,6 @@ code {
 
 .card-cta {
   margin-top: 0;
-=======
-  margin-top: 2px;
-}
-
-.card-cta {
-  margin-top: 4px;
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
   text-align: center;
   background: var(--color-primary);
   color: #fff;
@@ -1038,8 +1018,6 @@ code {
 .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-group--scroll { max-height: 280px; overflow-y: auto; padding-right: 4px; }
 
-<<<<<<< HEAD
-=======
 /* #roadmap-skill-chips 컨테이너 자체가 .chip-group(flex-wrap)이라, 그룹 블록이 그 안에서
    flex item으로 나란히 배치되지 않고 한 줄씩 차지하도록 flex-basis를 100%로 고정한다. */
 .skill-group-block { flex-basis: 100%; width: 100%; }
@@ -1085,7 +1063,6 @@ code {
 
 .skill-group-body--collapsed { display: none; }
 
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 .chip-toggle {
   border: 1px solid var(--color-border-strong);
   background: var(--color-surface-alt);
@@ -1253,7 +1230,6 @@ code {
   .position-grid { grid-template-columns: 1fr; }
   .mover-item { grid-template-columns: 1fr; row-gap: 4px; }
 }
-<<<<<<< HEAD
 
 /* ==================== 로그인 버튼 / 모달 ==================== */
 .login-toggle-btn {
@@ -1333,5 +1309,3 @@ code {
   background: var(--color-bg);
   display: block;
 }
-=======
->>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
