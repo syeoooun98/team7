@@ -1,5 +1,12 @@
+import { supabase } from './config.js';
 import { fetchAllRaw, subscribeRealtime } from './api.js';
 import { buildModel } from './model.js';
+import {
+  getCurrentApplicantProfileId,
+  fetchBookmarkedPositionIds,
+  toggleBookmark,
+  subscribeBookmarkChanges,
+} from './bookmarks.js';
 import {
   computeCategoryDistribution,
   computeRegionDistribution,
@@ -14,6 +21,8 @@ import {
   computeSkillMentionRanking,
   recommendPositions,
   computeCategorySkillFrequency,
+  groupSkillRanking,
+  getCertSuggestion,
   computeCategoryAnnualStats,
   computeRoadmap,
   computeCompanyOptions,
@@ -23,11 +32,14 @@ import {
   computeCompanyBadgeBenchmark,
   rankTagEffectStats,
   computeCompetingPositions,
+  computePositionDiffAgainst,
 } from './aggregate.js';
 import {
   renderHBarChart,
+  renderDonutRanking,
   renderSparkline,
-  renderGaugeBar,
+  renderRankLadder,
+  renderYearsGapBar,
   colorForKey,
   formatWon,
   formatDate,
@@ -50,19 +62,34 @@ const state = {
     q: '',
     categoryId: 'all',
     subTagIds: new Set(),
+    expandedSubTagGroups: new Set(),
     regions: new Set(),
     applyTypes: new Set(),
     urgentOnly: false,
     sort: 'deadline',
   },
   searchVisibleCount: 24,
-  roadmap: { categoryId: null, years: 0, mySkills: new Set() },
+  roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
   diagnosis: { companyId: null, positionId: null },
+  applicantProfileId: null,
+  bookmarkedPositionIds: new Set(),
 };
 
 const URGENT_WITHIN_DAYS = 7;
 const SEARCH_PAGE_SIZE = 24;
 const KNOWN_APPLY_TYPES = ['foreigner', 'alternative_military', 'disabled_person'];
+const MY_COMPANY_STORAGE_KEY = 'wanted-dashboard:my-company-id';
+
+/** "우리 회사" 지정은 로그인이 없는 1차 버전이라 브라우저 localStorage에 저장한다(기기별 설정) */
+function getMyCompanyId() {
+  const raw = localStorage.getItem(MY_COMPANY_STORAGE_KEY);
+  return raw ? Number(raw) : null;
+}
+
+function setMyCompanyId(id) {
+  if (id == null) localStorage.removeItem(MY_COMPANY_STORAGE_KEY);
+  else localStorage.setItem(MY_COMPANY_STORAGE_KEY, String(id));
+}
 
 /* ------------------------------------------------------------------ */
 /* 유틸                                                                 */
@@ -101,11 +128,23 @@ function showToast(message) {
 /* 공고 카드 렌더링 (여러 탭에서 공용)                                       */
 /* ------------------------------------------------------------------ */
 
+function isPositionBookmarked(positionId) {
+  return state.bookmarkedPositionIds.has(positionId);
+}
+
 function positionCardHTML(p, opts = {}) {
   const badge = ddayBadge(p.daysLeft);
   const initial = (p.company.name || '?').charAt(0);
   const avatarColor = colorForKey(p.company.name);
   const logoUrl = p.company.logo_url;
+  const bookmarked = !!opts.isBookmarked;
+  const bookmarkBtnHTML = `
+    <button type="button" class="bookmark-btn ${bookmarked ? 'bookmark-btn--active' : ''}"
+      data-position-id="${p.id}" aria-pressed="${bookmarked}"
+      aria-label="${bookmarked ? '북마크 해제' : '북마크 추가'}" title="${bookmarked ? '북마크 해제' : '북마크 추가'}">
+      <span aria-hidden="true">${bookmarked ? '★' : '☆'}</span>
+    </button>
+  `;
 
   const tagNames = [p.category.name, ...p.subTags.map((t) => t.name)].filter(Boolean).slice(0, 3);
   const tagsHTML = tagNames
@@ -128,8 +167,17 @@ function positionCardHTML(p, opts = {}) {
           .join(', ')}</div>`
       : '';
 
+  const ownRibbonHTML = opts.own ? `<div class="own-ribbon">📌 진단 대상 공고 (우리 회사)</div>` : '';
+  const diffHTML =
+    opts.diffChips && opts.diffChips.length
+      ? `<div class="diff-row">${opts.diffChips
+          .map((d) => `<span class="tag-chip tag-chip--diff">${escapeHTML(d)}</span>`)
+          .join('')}</div>`
+      : '';
+
   return `
-    <article class="position-card">
+    <article class="position-card ${opts.own ? 'position-card--own' : ''}">
+      ${ownRibbonHTML}
       <div class="position-card__head">
         <div class="company-avatar" style="background:${avatarColor}">
           <span class="company-avatar__fallback">${escapeHTML(initial)}</span>
@@ -144,14 +192,32 @@ function positionCardHTML(p, opts = {}) {
       <div class="tag-row">${tagsHTML}${skillHTML}</div>
       ${applyHTML ? `<div class="apply-row">${applyHTML}</div>` : ''}
       ${matchedHTML}
+      ${diffHTML}
       <div class="position-card__meta">
         <span title="지역(구/시 단위는 주소 텍스트 기반 근사치)">📍 ${escapeHTML(p.district)} · ${escapeHTML(p.location || '-')}</span>
         <span>💰 ${formatWon(p.reward_total)}</span>
-        <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+        <span class="meta-dday-row">
+          <span>📅 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+          ${bookmarkBtnHTML}
+        </span>
       </div>
       <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
     </article>
   `;
+}
+
+/** aggregate.js의 computePositionDiffAgainst가 반환한 원자 데이터를 화면 표시용 문구로 변환 */
+function formatDiffChip(diff) {
+  switch (diff.type) {
+    case 'reward':
+      return `보상금 ${diff.value > 0 ? '+' : '-'}${formatWon(Math.abs(diff.value))}`;
+    case 'applyTypes':
+      return `${diff.value.map(applyTypeLabel).join('·')} 추가 우대`;
+    case 'deadline':
+      return diff.value > 0 ? `마감 ${diff.value}일 여유` : `마감 ${Math.abs(diff.value)}일 촉박`;
+    default:
+      return '';
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -176,7 +242,13 @@ function renderCategoryMoverList(container, items) {
     .join('');
 }
 
-function renderSkillMoverList(container, items) {
+function renderSkillMoverList(container, items, { stagger = false } = {}) {
+  // 탭 재방문 등으로 다시 렌더링될 때 이전 순차 재생 타이머가 계속 누적되지 않도록 먼저 멈추다.
+  if (container._moverStop) {
+    container._moverStop();
+    container._moverStop = null;
+  }
+
   if (!items || items.length === 0) {
     container.innerHTML = '<div class="empty-state">표시할 데이터가 없습니다.</div>';
     return;
@@ -192,6 +264,28 @@ function renderSkillMoverList(container, items) {
     `
     )
     .join('');
+
+  // 처음엔 정적으로 보이다가, 위에서부터 한 줄씩 1초 간격으로 딱 한 번씩만 튀는 효과를 재생한다.
+  if (stagger) {
+    const rows = $$('.mover-item', container);
+    let stopped = false;
+    let timerId = null;
+
+    function popRow(idx) {
+      if (stopped || idx >= rows.length) return;
+      const row = rows[idx];
+      row.classList.remove('mover-item--pop');
+      void row.getBoundingClientRect();
+      row.classList.add('mover-item--pop');
+      timerId = setTimeout(() => popRow(idx + 1), 1000);
+    }
+
+    timerId = setTimeout(() => popRow(0), 400);
+    container._moverStop = () => {
+      stopped = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }
 }
 
 function renderInlineSkillTrend(container, movers) {
@@ -267,12 +361,12 @@ function renderHome() {
 
   const recommend = recommendPositions(positions, { limit: 6 });
   $('#recommend-list').innerHTML = recommend.length
-    ? recommend.map((p) => positionCardHTML(p)).join('')
+    ? recommend.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">추천할 공고가 없습니다.</div>';
 
   const urgent = getUrgentPositions(positions).slice(0, 6);
   $('#urgent-list').innerHTML = urgent.length
-    ? urgent.map((p) => positionCardHTML(p)).join('')
+    ? urgent.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('')
     : '<div class="empty-state">최근 7일 이내 마감되는 공고가 없습니다.</div>';
 }
 
@@ -312,22 +406,46 @@ function renderRoadmapSkillChips() {
     return;
   }
 
-  container.innerHTML = top
-    .map(
-      (s) => `
-      <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
-        ${escapeHTML(s.name)} <span>${s.count}</span>
-      </button>
-    `
-    )
+  const groups = groupSkillRanking(top);
+
+  const chipHTML = (s) => `
+    <button type="button" class="chip-toggle ${state.roadmap.mySkills.has(s.name) ? 'chip-toggle--active' : ''}" data-skill="${escapeHTML(s.name)}">
+      ${escapeHTML(s.name)} <span>${s.count}</span>
+    </button>
+  `;
+
+  container.innerHTML = groups
+    .map((g) => {
+      const expanded = state.roadmap.expandedSkillGroups.has(g.key);
+      const selectedCount = g.items.filter((s) => state.roadmap.mySkills.has(s.name)).length;
+      return `
+      <div class="skill-group-block">
+        <button type="button" class="skill-group-header ${expanded ? 'skill-group-header--open' : ''}" data-group="${g.key}">
+          <span class="skill-group-header__arrow">▸</span>
+          <span class="skill-group-header__label">${escapeHTML(g.label)}</span>
+          <span class="skill-group-header__count">${g.items.length}개${selectedCount ? ` · 선택 ${selectedCount}` : ''}</span>
+        </button>
+        <div class="chip-group skill-group-body ${expanded ? '' : 'skill-group-body--collapsed'}">${g.items.map(chipHTML).join('')}</div>
+      </div>
+    `;
+    })
     .join('');
+
+  $$('.skill-group-header', container).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.group;
+      if (state.roadmap.expandedSkillGroups.has(key)) state.roadmap.expandedSkillGroups.delete(key);
+      else state.roadmap.expandedSkillGroups.add(key);
+      renderRoadmapSkillChips();
+    });
+  });
 
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const skill = btn.dataset.skill;
       if (state.roadmap.mySkills.has(skill)) state.roadmap.mySkills.delete(skill);
       else state.roadmap.mySkills.add(skill);
-      btn.classList.toggle('chip-toggle--active');
+      renderRoadmapSkillChips();
       renderRoadmapOutput();
     });
   });
@@ -348,32 +466,20 @@ function renderRoadmapOutput() {
     risingSkillNames: risingSet,
   });
 
-  const gapText =
-    annual.avgFrom != null
-      ? `${(years - annual.avgFrom).toFixed(1)}년 ${years - annual.avgFrom >= 0 ? '초과' : '부족'}`
-      : '데이터 없음';
-
   $('#roadmap-kpis').innerHTML = `
-    <div class="kpi-card">
-      <p class="kpi-label">직군 평균 요구 연차</p>
-      <p class="kpi-value">${annual.avgFrom != null ? annual.avgFrom.toFixed(1) : '-'}<span class="kpi-unit">년</span></p>
-      <p class="kpi-sub">표본 ${annual.sample.toLocaleString()}건 / 전체 ${annual.totalInCategory.toLocaleString()}건 (연차 정보 있는 공고만)</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">내 연차 대비 갭</p>
-      <p class="kpi-value">${gapText}</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
-      <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
-      <p class="kpi-sub">보유 ${roadmap.coveredSkillCount} / 요구 ${roadmap.requiredSkillCount}종</p>
-    </div>
-    <div class="kpi-card">
-      <p class="kpi-label">평균연봉 대비 비교</p>
-      <p class="kpi-value kpi-value--muted">준비 중</p>
-      <p class="kpi-sub">포지션 단위 연봉 데이터가 API에 없어 미제공</p>
+    <div class="kpi-card kpi-card--wide">
+      <p class="kpi-label">직군 평균 요구 연차 대비</p>
+      <div id="roadmap-years-gap"></div>
     </div>
   `;
+
+  renderYearsGapBar($('#roadmap-years-gap'), {
+    avgYears: annual.avgFrom,
+    myYears: years,
+    onChange: (newYears) => {
+      state.roadmap.years = newYears;
+    },
+  });
 
   const missingContainer = $('#roadmap-missing-skills');
   if (roadmap.missingTop3.length === 0) {
@@ -391,12 +497,46 @@ function renderRoadmapOutput() {
       .join('');
   }
 
+  $('#roadmap-skill-coverage').innerHTML = `
+    <p class="kpi-label">스킬 커버리지 (언급량 가중)</p>
+    <p class="kpi-value">${roadmap.weightedCoverage.toFixed(1)}<span class="kpi-unit">%</span></p>
+    <p class="kpi-sub">보유 ${roadmap.coveredSkillCount} / 요구 ${roadmap.requiredSkillCount}종</p>
+  `;
+
+  const certContainer = $('#roadmap-cert-roadmap');
+  if (roadmap.missingTop3.length === 0) {
+    certContainer.innerHTML = '<div class="empty-state empty-state--inline">추천할 미보유 스킬이 없습니다.</div>';
+  } else {
+    certContainer.innerHTML = roadmap.missingTop3
+      .map((m) => {
+        const suggestion = getCertSuggestion(m.name);
+        if (!suggestion) {
+          return `
+            <div class="cert-roadmap-item">
+              <p class="cert-roadmap-item__skill">${escapeHTML(m.name)}</p>
+              <p class="cert-roadmap-item__empty">관련 자격증 정보가 아직 없습니다.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="cert-roadmap-item">
+            <p class="cert-roadmap-item__skill">${escapeHTML(m.name)}</p>
+            <div class="cert-roadmap-item__chips">
+              ${suggestion.certs.map((c) => `<span class="tag-chip">${escapeHTML(c)}</span>`).join('')}
+            </div>
+            <p class="cert-roadmap-item__note">${escapeHTML(suggestion.note)}</p>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
   const topPositionsContainer = $('#roadmap-top-positions');
   if (roadmap.topPositions.length === 0) {
     topPositionsContainer.innerHTML = '<div class="empty-state">보유 스킬을 선택하면 매칭되는 공고가 표시됩니다.</div>';
   } else {
     topPositionsContainer.innerHTML = roadmap.topPositions
-      .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched }))
+      .map((x) => positionCardHTML(x.position, { matchedSkills: x.matched, isBookmarked: isPositionBookmarked(x.position.id) }))
       .join('');
   }
 }
@@ -414,25 +554,41 @@ function setupRoadmapListeners() {
     renderRoadmapSkillChips();
     renderRoadmapOutput();
   });
-
-  $('#roadmap-years').addEventListener('input', (e) => {
-    state.roadmap.years = Number(e.target.value) || 0;
-    renderRoadmapOutput();
-  });
 }
 
 /* ==================================================================== */
 /* 지원자 입장 — 3. 우대조건 특화 필터 (+ 공고 검색)                          */
 /* ==================================================================== */
 
-function getSubTagOptions(scopedPositions) {
-  const map = new Map();
+/**
+ * 직무 태그(subcategory)를 소속 직군(category, 산업 분야)별로 묶는다.
+ * 한 subcategory 태그는 tags.parent_tag_id로 항상 하나의 category에 속하므로,
+ * 그 태그가 붙은 공고의 category를 그대로 그룹 키로 쓰면 된다.
+ */
+function getGroupedSubTagOptions(scopedPositions) {
+  const groups = new Map(); // categoryId -> { categoryId, categoryName, items: Map<subTagId, {id,name,count}> }
+
   scopedPositions.forEach((p) => {
+    const categoryId = p.category.id ?? 'uncategorized';
+    const categoryName = p.category.name || '미분류';
+    if (!groups.has(categoryId)) {
+      groups.set(categoryId, { categoryId, categoryName, items: new Map() });
+    }
+    const group = groups.get(categoryId);
     p.subTags.forEach((t) => {
-      map.set(t.id, { id: t.id, name: t.name, count: (map.get(t.id)?.count || 0) + 1 });
+      const prev = group.items.get(t.id);
+      group.items.set(t.id, { id: t.id, name: t.name, count: (prev?.count || 0) + 1 });
     });
   });
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+
+  return Array.from(groups.values())
+    .map((g) => {
+      const items = Array.from(g.items.values()).sort((a, b) => b.count - a.count);
+      const totalCount = items.reduce((sum, i) => sum + i.count, 0);
+      return { categoryId: g.categoryId, categoryName: g.categoryName, items, totalCount };
+    })
+    .filter((g) => g.items.length > 0)
+    .sort((a, b) => b.totalCount - a.totalCount);
 }
 
 function applyFilters(positions, filters) {
@@ -570,30 +726,64 @@ function renderSubTagChips() {
   const scoped =
     state.filters.categoryId === 'all' ? positions : positions.filter((p) => p.category.id === state.filters.categoryId);
 
-  const options = getSubTagOptions(scoped);
+  const groups = getGroupedSubTagOptions(scoped);
   const container = $('#filter-subtags');
 
-  if (options.length === 0) {
+  if (groups.length === 0) {
     container.innerHTML = '<p class="empty-state empty-state--inline">태그가 없습니다.</p>';
     return;
   }
 
-  container.innerHTML = options
-    .map(
-      (opt) => `
-    <button type="button" class="chip-toggle ${state.filters.subTagIds.has(opt.id) ? 'chip-toggle--active' : ''}" data-tag-id="${opt.id}">
-      ${escapeHTML(opt.name)} <span>${opt.count}</span>
-    </button>
-  `
-    )
+  // 직군(대분류)을 이미 하나로 좋혀놓은 상태라 그룹이 1개뿠이면, 굳이 또 접어두지 않고 바로 펼쳐서 보여준다.
+  const singleGroup = groups.length === 1;
+
+  container.innerHTML = groups
+    .map((g) => {
+      const groupKey = String(g.categoryId);
+      const expanded = singleGroup || state.filters.expandedSubTagGroups.has(groupKey);
+      const selectedCount = g.items.filter((i) => state.filters.subTagIds.has(i.id)).length;
+      const chipsHTML = g.items
+        .map(
+          (opt) => `
+        <button type="button" class="chip-toggle ${state.filters.subTagIds.has(opt.id) ? 'chip-toggle--active' : ''}" data-tag-id="${opt.id}">
+          ${escapeHTML(opt.name)} <span>${opt.count}</span>
+        </button>
+      `
+        )
+        .join('');
+
+      if (singleGroup) {
+        return `<div class="chip-group">${chipsHTML}</div>`;
+      }
+
+      return `
+        <div class="skill-group-block">
+          <button type="button" class="skill-group-header ${expanded ? 'skill-group-header--open' : ''}" data-subtag-group="${groupKey}">
+            <span class="skill-group-header__arrow">▸</span>
+            <span class="skill-group-header__label">${escapeHTML(g.categoryName)}</span>
+            <span class="skill-group-header__count">${g.items.length}개${selectedCount ? ` · 선택 ${selectedCount}` : ''}</span>
+          </button>
+          <div class="chip-group skill-group-body ${expanded ? '' : 'skill-group-body--collapsed'}">${chipsHTML}</div>
+        </div>
+      `;
+    })
     .join('');
+
+  $$('.skill-group-header', container).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.subtagGroup;
+      if (state.filters.expandedSubTagGroups.has(key)) state.filters.expandedSubTagGroups.delete(key);
+      else state.filters.expandedSubTagGroups.add(key);
+      renderSubTagChips();
+    });
+  });
 
   $$('.chip-toggle', container).forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.tagId);
       if (state.filters.subTagIds.has(id)) state.filters.subTagIds.delete(id);
       else state.filters.subTagIds.add(id);
-      btn.classList.toggle('chip-toggle--active');
+      renderSubTagChips();
       renderSearchResults();
     });
   });
@@ -664,7 +854,7 @@ function renderSearchResults() {
   const visible = filtered.slice(0, state.searchVisibleCount);
   const remaining = filtered.length - visible.length;
 
-  grid.innerHTML = visible.map((p) => positionCardHTML(p)).join('');
+  grid.innerHTML = visible.map((p) => positionCardHTML(p, { isBookmarked: isPositionBookmarked(p.id) })).join('');
 
   if (remaining > 0) {
     const loadMoreWrap = document.createElement('div');
@@ -724,6 +914,15 @@ function renderDiagPositionSelect() {
   $('#diag-position-search').value = current ? current.title : '';
 }
 
+/** 검색창 옆 "우리 회사로 설정" 토글의 라벨/활성 상태를 현재 선택된 회사 기준으로 갱신 */
+function renderMyCompanyToggle() {
+  const btn = $('#diag-mycompany-toggle');
+  const myCompanyId = getMyCompanyId();
+  const isMine = myCompanyId != null && myCompanyId === state.diagnosis.companyId;
+  btn.textContent = isMine ? '★ 우리 회사' : '☆ 우리 회사로 설정';
+  btn.classList.toggle('mycompany-toggle-btn--active', isMine);
+}
+
 function renderDiagCompanyOptionsList(query) {
   const options = computeCompanyOptions(state.model.positions);
   const q = query.trim().toLowerCase();
@@ -731,13 +930,29 @@ function renderDiagCompanyOptionsList(query) {
   const limited = filtered.slice(0, DIAG_OPTION_LIMIT);
   const container = $('#diag-company-options');
 
+  const grouped = new Map();
+  limited.forEach((c) => {
+    const key = c.primaryCategory;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(c);
+  });
+  const groupNames = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b, 'ko'));
+
   container.innerHTML = limited.length
-    ? limited
+    ? groupNames
+        .map(
+          (g) => `
+      <div class="searchable-select__group-label">${escapeHTML(g)}</div>
+      ${grouped
+        .get(g)
         .map(
           (c) => `
-      <div class="searchable-select__option" data-company-id="${c.id}">
-        ${escapeHTML(c.name)} <span class="mover-item__detail">(공고 ${c.count}건)</span>
-      </div>
+        <div class="searchable-select__option" data-company-id="${c.id}">
+          ${escapeHTML(c.name)} <span class="mover-item__detail">(공고 ${c.count}건)</span>
+        </div>
+      `
+        )
+        .join('')}
     `
         )
         .join('') +
@@ -752,6 +967,7 @@ function renderDiagCompanyOptionsList(query) {
       e.preventDefault();
       state.diagnosis.companyId = Number(el.dataset.companyId);
       renderDiagCompanySelect();
+      renderMyCompanyToggle();
       container.classList.add('hidden');
       renderDiagPositionSelect();
       renderDiagnosis();
@@ -806,7 +1022,7 @@ function renderDiagPositionOptionsList(query) {
 }
 
 function renderDiagnosis() {
-  const { positions, companyTagsByCompanyId, tagEffectStats, categoryMarketStats } = state.model;
+  const { positions, companyTagsByCompanyId, categoryMarketStats } = state.model;
   const position = positions.find((p) => p.id === state.diagnosis.positionId);
 
   if (!position) {
@@ -824,7 +1040,7 @@ function renderDiagnosis() {
   $('#diag-gauge-desc').textContent = rewardResult
     ? `동일 직군(${position.category.name}) 공고 ${rewardResult.sampleSize.toLocaleString()}건과 실제 비교한 순위입니다.`
     : '비교할 동일 직군 공고 데이터가 부족합니다.';
-  renderGaugeBar($('#diag-gauge'), rewardResult ? rewardResult.percentile : null, {
+  renderRankLadder($('#diag-gauge'), rewardResult ? rewardResult.percentile : null, {
     sublabel: `이 공고 보상금 ${formatWon(position.reward_total)}`,
   });
 
@@ -869,24 +1085,26 @@ function renderDiagnosis() {
         .join('')
     : '<div class="empty-state">비교할 배지 데이터가 없습니다.</div>';
 
-  // 4. 매력 태그 효과 시뮬레이션 (데모, 합성값)
-  const tagRanking = rankTagEffectStats(tagEffectStats, 8);
-  renderHBarChart(
-    $('#diag-tag-effect-ranking'),
-    tagRanking.map((t) => ({ label: t.tag_name, value: Math.round(t.avg_applicants || 0), colorKey: t.tag_name })),
-    { valueSuffix: '명(데모)', showPercentOfTotal: false, emptyMessage: '데이터가 없습니다.' }
-  );
-
-  // 5. 경쟁 공고 한눈에 보기 (실측)
+  // 4. 경쟁 공고 한눈에 보기 (실측) — 진단 대상(우리) 공고를 맨 위에 고정, 경쟁 공고마다 핵심 차이 표시
   const competing = computeCompetingPositions(positions, position, { limit: 6 });
-  $('#diag-competing-list').innerHTML = competing.length
-    ? competing.map((p) => positionCardHTML(p)).join('')
+  const ownCardHTML = positionCardHTML(position, { own: true, isBookmarked: isPositionBookmarked(position.id) });
+  const competingCardsHTML = competing.length
+    ? competing
+        .map((p) =>
+          positionCardHTML(p, {
+            diffChips: computePositionDiffAgainst(position, p).map(formatDiffChip),
+            isBookmarked: isPositionBookmarked(p.id),
+          })
+        )
+        .join('')
     : '<div class="empty-state">현재 경쟁 중인 타사 공고가 없습니다.</div>';
+  $('#diag-competing-list').innerHTML = ownCardHTML + competingCardsHTML;
 }
 
 function renderDiagnosisTab() {
   renderDiagCompanySelect();
   renderDiagPositionSelect();
+  renderMyCompanyToggle();
   renderDiagnosis();
 }
 
@@ -912,6 +1130,31 @@ function setupDiagnosisStaticListeners() {
       renderDiagPositionSelect();
     }, 120);
   });
+
+  $('#diag-mycompany-toggle').addEventListener('click', () => {
+    const myCompanyId = getMyCompanyId();
+    if (myCompanyId != null && myCompanyId === state.diagnosis.companyId) {
+      setMyCompanyId(null);
+      showToast('우리 회사 설정을 해제했습니다.');
+    } else if (state.diagnosis.companyId != null) {
+      setMyCompanyId(state.diagnosis.companyId);
+      showToast('이 회사를 우리 회사로 설정했습니다.');
+    }
+    renderMyCompanyToggle();
+  });
+
+  $('#diag-mycompany-jump').addEventListener('click', () => {
+    const myCompanyId = getMyCompanyId();
+    if (myCompanyId == null) {
+      showToast('먼저 회사를 선택하고 "우리 회사로 설정"을 눌러주세요.');
+      return;
+    }
+    state.diagnosis.companyId = myCompanyId;
+    renderDiagCompanySelect();
+    renderMyCompanyToggle();
+    renderDiagPositionSelect();
+    renderDiagnosis();
+  });
 }
 
 /* ==================================================================== */
@@ -919,16 +1162,24 @@ function setupDiagnosisStaticListeners() {
 /* ==================================================================== */
 
 function renderTrendTab() {
-  const { skillTagTrend } = state.model;
+  const { skillTagTrend, tagEffectStats } = state.model;
   const movers = computeSkillMovers(skillTagTrend, { topN: 3 });
-  renderSkillMoverList($('#trend-up'), movers.up);
-  renderSkillMoverList($('#trend-down'), movers.down);
+  renderSkillMoverList($('#trend-up'), movers.up, { stagger: true });
+  renderSkillMoverList($('#trend-down'), movers.down, { stagger: true });
 
-  const ranking = computeSkillMentionRanking(skillTagTrend, { topN: 15 });
-  renderHBarChart(
+  const ranking = computeSkillMentionRanking(skillTagTrend, { topN: 10 });
+  renderDonutRanking(
     $('#trend-ranking'),
     ranking.map((r) => ({ label: r.skill_name, value: r.mention_count, colorKey: r.skill_name })),
-    { valueSuffix: '회', showPercentOfTotal: false, emptyMessage: '데이터가 없습니다.' }
+    { valueSuffix: '회', emptyMessage: '데이터가 없습니다.' }
+  );
+
+  // 매력 태그 효과 시뮬레이션 (데모, 합성값) — 회사/공고 선택과 무관한 고정 지표라 진단 탭이 아닌 트렌드 탭에 배치
+  const tagRanking = rankTagEffectStats(tagEffectStats, 8);
+  renderDonutRanking(
+    $('#trend-tag-effect-ranking'),
+    tagRanking.map((t) => ({ label: t.tag_name, value: Math.round(t.avg_applicants || 0), colorKey: t.tag_name })),
+    { valueSuffix: '명(데모)', emptyMessage: '데이터가 없습니다.' }
   );
 }
 
@@ -1004,6 +1255,101 @@ async function loadData() {
   state.companyCount = state.model.companiesById.size;
 }
 
+/* 현재 로그인한 지원자의 북마크 Set을 가져온다. 로그인 안 되어 있거나
+   지원자 프로필이 없으면(채용자 계정 등) 빈 Set으로 처리한다
+   (카드 렌더링 자체를 막을 이유는 없으므로 에러를 던지지 않는다). */
+async function loadBookmarkState() {
+  try {
+    const applicantProfileId = await getCurrentApplicantProfileId();
+    state.applicantProfileId = applicantProfileId;
+    state.bookmarkedPositionIds = applicantProfileId
+      ? await fetchBookmarkedPositionIds(applicantProfileId)
+      : new Set();
+  } catch (err) {
+    console.error('북마크 상태 로드 실패', err);
+    state.bookmarkedPositionIds = new Set();
+  }
+}
+
+/* --------------------------------------------------------------- */
+/* 북마크 실시간 동기화 (bookmarked_positions Realtime 구독)              */
+/* mypage.html(맞춤 재정렬 탭)에서 북마크를 해제/추가해도 이 화면에 렌더링된   */
+/* .bookmark-btn 별표가 실시간으로 맞춰지도록 한다.                        */
+/* --------------------------------------------------------------- */
+
+let unsubscribeBookmarkRealtime = null;
+
+/** 화면에 이미 렌더링된 모든 .bookmark-btn을 state.bookmarkedPositionIds 기준으로 동기화한다.
+ *  같은 공고 카드가 여러 탭/영역(추천/마감임박/검색결과/로드맵 등)에 중복 렌더링될 수 있어
+ *  querySelectorAll로 전부 갱신한다. */
+function syncAllBookmarkButtonsDOM() {
+  $$('.bookmark-btn').forEach((btn) => {
+    const positionId = Number(btn.dataset.positionId);
+    if (!positionId) return;
+    const bookmarked = isPositionBookmarked(positionId);
+    btn.classList.toggle('bookmark-btn--active', bookmarked);
+    btn.setAttribute('aria-pressed', String(bookmarked));
+    btn.title = bookmarked ? '북마크 해제' : '북마크 추가';
+    btn.setAttribute('aria-label', bookmarked ? '북마크 해제' : '북마크 추가');
+    const icon = btn.querySelector('span');
+    if (icon) icon.textContent = bookmarked ? '★' : '☆';
+  });
+}
+
+/** bookmarked_positions에 대한 postgres_changes 이벤트 처리 (INSERT/DELETE) */
+function handleBookmarkRealtimeChange(payload) {
+  const positionId =
+    payload.eventType === 'DELETE' ? payload.old?.position_id : payload.new?.position_id;
+  if (positionId == null) return;
+
+  if (payload.eventType === 'INSERT') {
+    state.bookmarkedPositionIds.add(positionId);
+  } else if (payload.eventType === 'DELETE') {
+    state.bookmarkedPositionIds.delete(positionId);
+  }
+  syncAllBookmarkButtonsDOM();
+}
+
+/** state.applicantProfileId 기준으로 북마크 실시간 구독을 다시 건다(기존 구독은 먼저 해제). */
+function refreshBookmarkRealtimeSubscription() {
+  if (unsubscribeBookmarkRealtime) {
+    unsubscribeBookmarkRealtime();
+    unsubscribeBookmarkRealtime = null;
+  }
+  if (state.applicantProfileId) {
+    unsubscribeBookmarkRealtime = subscribeBookmarkChanges(
+      state.applicantProfileId,
+      handleBookmarkRealtimeChange
+    );
+  }
+}
+
+/* --------------------------------------------------------------- */
+/* 로그인 상태 실시간 동기화 (supabase.auth.onAuthStateChange)            */
+/* 헤더 로그인 모달·mypage.html iframe 등 다른 컨텍스트에서 로그인/로그아웃해도  */
+/* supabase-js v2의 멀티탭 세션 동기화(localStorage 감지)로 이 이벤트가 온다.  */
+/* --------------------------------------------------------------- */
+
+let lastKnownAuthUserId; // undefined = 아직 파악 전, null = 비로그인
+
+async function handleAuthChangeForBookmarks(session) {
+  const userId = session?.user?.id || null;
+  if (userId === lastKnownAuthUserId) return; // 실제 로그인 사용자 변화가 없으면(토큰 갱신 등) 무시
+  lastKnownAuthUserId = userId;
+
+  await loadBookmarkState();
+  syncAllBookmarkButtonsDOM();
+  refreshBookmarkRealtimeSubscription();
+}
+
+function setupAuthListener() {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    handleAuthChangeForBookmarks(session).catch((err) => {
+      console.error('[app] 로그인 상태 변경 처리 실패', err);
+    });
+  });
+}
+
 function renderAll() {
   renderHome();
   initRoadmapDefaults();
@@ -1017,10 +1363,16 @@ async function init() {
   setLoading(true);
   setError(null);
   try {
-    await loadData();
+    await Promise.all([loadData(), loadBookmarkState()]);
     setLoading(false);
     renderAll();
     $('#last-updated').textContent = `마지막 갱신: ${new Date().toLocaleTimeString('ko-KR')}`;
+
+    // onAuthStateChange 리스너가 "실제 변화"만 처리하도록 초기 로그인 사용자를 기록해둔다
+    // (등록 시점에 오는 INITIAL_SESSION 이벤트로 loadBookmarkState()가 중복 실행되는 것을 방지).
+    const { data: sessionData } = await supabase.auth.getSession();
+    lastKnownAuthUserId = sessionData?.session?.user?.id || null;
+    refreshBookmarkRealtimeSubscription();
   } catch (err) {
     console.error(err);
     setLoading(false);
@@ -1036,15 +1388,71 @@ function setupNav() {
     btn.addEventListener('click', () => {
       const nav = btn.closest('.subtab-nav');
       const mode = nav ? nav.dataset.modeTabs : state.mode;
-      setTab(mode, btn.dataset.tab);
+      const tab = btn.dataset.tab;
+      setTab(mode, tab);
+      // 트렌드 탭은 등장 애니메이션(도넛 자동 한 바퀴, 상승/하락 태그 순차 튀)이 있어서
+      // 페이지 로드 때 숨겨진 채로 미리 재생되어 버리지 않도록, 실제로 탭에 들어올 때 다시 그린다.
+      if (mode === 'recruiter' && tab === 'trend') {
+        renderTrendTab();
+      }
     });
   });
   document.body.addEventListener('click', (e) => {
     const jumpEl = e.target.closest('[data-jump-mode-tab]');
     if (jumpEl) {
       jumpModeTab(jumpEl.dataset.jumpModeTab);
+      return;
+    }
+    const bookmarkBtn = e.target.closest('.bookmark-btn');
+    if (bookmarkBtn) {
+      handleBookmarkButtonClick(bookmarkBtn);
     }
   });
+}
+
+/* 공고 카드의 북마크 버튼 클릭 처리 (이벤트 위임으로 등록되어 카드가 몇 개든 리스너는 하나) */
+async function handleBookmarkButtonClick(btn) {
+  const positionId = Number(btn.dataset.positionId);
+  if (!positionId) return;
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.error(sessionError);
+    showToast('로그인 상태를 확인하지 못했습니다.');
+    return;
+  }
+  if (!sessionData.session) {
+    showToast('로그인이 필요합니다.');
+    $('#login-toggle-btn')?.click();
+    return;
+  }
+
+  const applicantProfileId = await getCurrentApplicantProfileId();
+  if (!applicantProfileId) {
+    showToast('지원자 계정만 북마크할 수 있습니다.');
+    return;
+  }
+
+  const currentlyBookmarked = btn.classList.contains('bookmark-btn--active');
+  btn.disabled = true;
+  try {
+    const nowBookmarked = await toggleBookmark(applicantProfileId, positionId, currentlyBookmarked);
+    state.applicantProfileId = applicantProfileId;
+    if (nowBookmarked) state.bookmarkedPositionIds.add(positionId);
+    else state.bookmarkedPositionIds.delete(positionId);
+
+    btn.classList.toggle('bookmark-btn--active', nowBookmarked);
+    btn.setAttribute('aria-pressed', String(nowBookmarked));
+    btn.title = nowBookmarked ? '북마크 해제' : '북마크 추가';
+    btn.setAttribute('aria-label', nowBookmarked ? '북마크 해제' : '북마크 추가');
+    const icon = btn.querySelector('span');
+    if (icon) icon.textContent = nowBookmarked ? '★' : '☆';
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || '북마크 처리 중 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function setupRealtime() {
@@ -1081,5 +1489,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNav();
   setupRetry();
   setupStaticListenersOnce();
+  setupAuthListener();
   init().then(setupRealtime);
 });
