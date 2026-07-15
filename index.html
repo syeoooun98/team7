@@ -237,11 +237,6 @@
 
         <!-- 1. 공고 경쟁력 진단 -->
         <section class="tab-panel hidden" data-mode="recruiter" data-tab="diagnosis">
-          <div class="info-banner">
-            보상금 백분위는 <strong>positions.reward_total</strong> 실측 데이터를 기준으로, 같은 직군(대분류) 내 공고들과
-            직접 비교해 계산한 값입니다(표본 수 함께 표시).
-          </div>
-
           <div class="diagnosis-selectors">
             <div class="filter-block searchable-select">
               <label class="filter-title" for="diag-company-search">회사 선택 <span class="filter-title__hint">(채용 분야별로 묶어 표시)</span></label>
@@ -252,8 +247,13 @@
               <div id="diag-company-options" class="searchable-select__list hidden"></div>
             </div>
             <div class="filter-block searchable-select">
-              <label class="filter-title" for="diag-position-search">진단할 공고 선택</label>
-              <input type="text" id="diag-position-search" class="filter-search-input" placeholder="공고명 검색… (직무별로 묶어 표시)" autocomplete="off" />
+              <label class="filter-title" for="diag-position-search">진단할 공고 선택 <span class="filter-title__hint">(같은 회사의 다른 공고도 펼쳐서 볼 수 있어요)</span></label>
+              <div class="searchable-select__input-row">
+                <input type="text" id="diag-position-search" class="filter-search-input" placeholder="공고명 검색… (직무별로 묶어 표시)" autocomplete="off" />
+                <button type="button" id="diag-position-toggle" class="searchable-select__toggle" aria-label="같은 회사 공고 목록 펼치기">
+                  <span class="searchable-select__toggle-arrow">◂</span>
+                </button>
+              </div>
               <div id="diag-position-options" class="searchable-select__list hidden"></div>
             </div>
             <div class="filter-block">
@@ -265,24 +265,33 @@
           <div id="diag-empty" class="empty-state">회사와 공고를 선택하면 진단 결과가 표시됩니다.</div>
 
           <div id="diag-result" class="hidden">
-            <p class="section-block__desc">아래 4개 카드는 선택한 회사·공고에 따라 함께 바뀝니다.</p>
+            <p class="section-block__desc">아래 카드는 선택한 회사·공고에 따라 함께 바뀝니다.</p>
+
+            <section class="chart-card chart-card--wide">
+              <h2>우리 회사 공고 <span class="section-tag">진단 대상</span></h2>
+              <div id="diag-own-position"></div>
+            </section>
+
             <div class="chart-grid">
               <section class="chart-card chart-card--wide">
                 <h2>경쟁 공고 한눈에 보기 <span class="section-tag">실측</span></h2>
                 <p class="chart-card__desc">
-                  진단 대상인 우리 공고(📌)를 맨 위에 고정하고, 같은 직군에서 경쟁하는 타사의 현재 오픈 공고를 보상금 높은순으로 표시합니다.
+                  같은 직군에서 경쟁하는 타사의 현재 오픈 공고를 보상금 높은순으로 표시합니다.
                   각 경쟁 공고 아래에는 우리 공고와의 핵심 차이(보상금·우대조건·마감일)를 함께 표시합니다.
                 </p>
                 <div id="diag-competing-list" class="position-grid"></div>
               </section>
+            </div>
 
-              <section class="chart-card chart-card--wide">
+            <h3 class="ranking-group-title">💰 보상금 리포트</h3>
+            <div class="chart-grid">
+              <section class="chart-card">
                 <h2>보상금 시장 백분위</h2>
                 <p class="chart-card__desc" id="diag-gauge-desc"></p>
                 <div id="diag-gauge"></div>
               </section>
 
-              <section class="chart-card chart-card--wide">
+              <section class="chart-card">
                 <h2>배지 획득 챌린지 <span class="section-tag">실측</span></h2>
                 <p class="chart-card__desc">
                   <strong>category_market_stats</strong>의 업계 평균/상위 10% 보상금(실측)과 이 공고를 비교합니다.
@@ -290,7 +299,9 @@
                 </p>
                 <div id="diag-badge-challenge" class="mover-list"></div>
               </section>
+            </div>
 
+            <div class="chart-grid">
               <section class="chart-card chart-card--wide">
                 <h2>회사 배지 벤치마킹 <span class="section-tag">실측</span></h2>
                 <p class="chart-card__desc">
@@ -324,11 +335,6 @@
               <p class="chart-card__desc">전주 대비 언급량 감소율 기준</p>
               <div id="trend-down" class="mover-list"></div>
             </section>
-          </div>
-
-          <div class="info-banner info-banner--muted">
-            공용 데이터 모듈 안내: 이 스킬 태그 트렌드는 지원자용 "마켓 홈 Zoom-in"과 "취준 로드맵"의 미보유 스킬 추천에도
-            동일 데이터로 재사용됩니다(PRD 6장).
           </div>
 
           <h3 class="ranking-group-title">🔥 핫 태그 랭크</h3>
