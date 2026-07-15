@@ -20,7 +20,10 @@
       </nav>
 
       <div class="app-header__status">
+<<<<<<< HEAD
         <button type="button" class="login-toggle-btn" id="login-toggle-btn">로그인</button>
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
         <span class="realtime-indicator">
           <span id="realtime-dot" class="realtime-dot"></span> 실시간 동기화
         </span>
@@ -28,6 +31,7 @@
       </div>
     </header>
 
+<<<<<<< HEAD
     <div class="login-modal-backdrop" id="login-modal-backdrop">
       <div class="login-modal-box">
         <iframe id="login-modal-iframe" src="about:blank" title="로그인 / 회원가입"></iframe>
@@ -35,12 +39,18 @@
       </div>
     </div>
 
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
     <nav class="subtab-nav" data-mode-tabs="applicant" aria-label="지원자 화면 탭">
       <button type="button" class="tab-btn tab-btn--active" data-tab="home">0. 마켓 홈</button>
       <button type="button" class="tab-btn" data-tab="roadmap">1. 취준 로드맵</button>
       <button type="button" class="tab-btn" data-tab="filter">3. 우대조건 필터</button>
       <button type="button" class="tab-btn tab-btn--disabled" data-tab="company-health">2. 기업 건강도 비교 <span class="soon-badge">준비중</span></button>
+<<<<<<< HEAD
       <button type="button" class="tab-btn" data-tab="personalized">4. 맞춤 재정렬</button>
+=======
+      <button type="button" class="tab-btn tab-btn--disabled" data-tab="personalized">4. 맞춤 재정렬 <span class="soon-badge">준비중</span></button>
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
     </nav>
 
     <nav class="subtab-nav hidden" data-mode-tabs="recruiter" aria-label="채용자 화면 탭">
@@ -156,12 +166,15 @@
 
         <!-- 1. 취준 로드맵 -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="roadmap">
+<<<<<<< HEAD
           <div class="info-banner">
             직군별 요구 스킬은 <strong>position_skill_tags</strong>(14,629건, 이름 기반 집계)를 사용합니다.
             포지션 단위 연봉·요구연차 데이터는 API 특성상 근사치이며(연차는 <code>positions.annual_from/to</code> 값이 있는 공고에 한해 집계),
             회사 단위 평균연봉(<code>company_insight_snapshots</code>)은 아직 미구현이라 이번 버전에서는 다루지 않습니다.
           </div>
 
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
           <div class="roadmap-layout">
             <aside class="roadmap-input-panel">
               <div class="filter-block">
@@ -169,10 +182,13 @@
                 <select id="roadmap-category" class="filter-select"></select>
               </div>
               <div class="filter-block">
+<<<<<<< HEAD
                 <label class="filter-title" for="roadmap-years">현재 경력 연차</label>
                 <input type="number" id="roadmap-years" class="filter-search-input" min="0" max="30" step="0.5" value="0" />
               </div>
               <div class="filter-block">
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
                 <p class="filter-title">보유 스킬 <span class="filter-title__hint">(선택 직군 요구빈도 TOP 30 중 선택)</span></p>
                 <div id="roadmap-skill-chips" class="chip-group chip-group--scroll"></div>
               </div>
@@ -187,6 +203,18 @@
                 <div id="roadmap-missing-skills" class="mover-list"></div>
               </section>
 
+<<<<<<< HEAD
+=======
+              <div class="kpi-grid kpi-grid--roadmap kpi-grid--below-missing">
+                <div id="roadmap-skill-coverage" class="kpi-card kpi-card--fit"></div>
+                <div class="kpi-card">
+                  <p class="kpi-label">미보유 스킬 학습 로드맵 (관련 자격증)</p>
+                  <div id="roadmap-cert-roadmap"></div>
+                  <p class="kpi-sub kpi-sub--faint">참고용 큐레이션 정보이며, 실제 지원자·채용 통계가 아닙니다.</p>
+                </div>
+              </div>
+
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
               <section class="section-block">
                 <h2>현재 스펙으로 지원 시 유리한 공고 TOP3</h2>
                 <p class="section-block__desc">보유 스킬과 매칭되는 스킬 태그 수가 많은 순으로 정렬했습니다.</p>
@@ -198,10 +226,13 @@
 
         <!-- 3. 우대조건 특화 필터 (+ 일반 공고 검색) -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="filter">
+<<<<<<< HEAD
           <div class="info-banner">
             <strong>우대조건 특화 필터(PRD 5.3)</strong>: 외국인 우대 / 병역특례 / 장애인 우대 조건으로 공고를 좁혀볼 수 있습니다.
             직군·지역·검색어 필터는 결과를 더 세밀하게 좁히기 위한 보조 기능입니다.
           </div>
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
           <div class="search-layout">
             <aside id="filter-sidebar" class="filter-sidebar"></aside>
 
@@ -235,9 +266,22 @@
           </div>
         </section>
 
+<<<<<<< HEAD
         <!-- 4. 개인 맞춤형 공고 재정렬 (mypage.html 임베드 — 로그인/개인 프로필 전제) -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="personalized">
           <iframe class="personalized-frame" src="mypage.html" title="맞춤형 공고 재정렬 (마이페이지)"></iframe>
+=======
+        <!-- 4. 개인 맞춤형 공고 재정렬 (준비중) -->
+        <section class="tab-panel hidden" data-mode="applicant" data-tab="personalized">
+          <div class="placeholder-panel">
+            <h2>🚧 준비 중 — 개인 맞춤형 공고 재정렬</h2>
+            <p>
+              이 화면은 로그인/회원 프로필(<code>applicant_profiles</code>, <code>applicant_priority_factors</code>)을 전제로 합니다.
+              1차 버전은 로그인/개인화 기능 없이 공개 데이터 위주로 구현되어 이번 범위에서 제외했습니다.
+              현재는 마켓 홈의 "지원할 공고" 영역에서 보상금·최신순 휴리스틱 추천으로 대체하고 있습니다.
+            </p>
+          </div>
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
         </section>
 
         <!-- ============================================================ -->
@@ -346,6 +390,7 @@
   <!-- Supabase JS 클라이언트 (CDN) — window.supabase 전역 노출 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" src="./js/app.js"></script>
+<<<<<<< HEAD
 
   <!-- 로그인 버튼 / 모달 (login.html을 iframe으로 여는 독립 스크립트, app.js와는 별개 기능이지만
        js/config.js의 supabase 클라이언트(싱글턴)를 그대로 재사용하기 위해 type="module"로 둔다) -->
@@ -429,5 +474,7 @@
     });
   })();
   </script>
+=======
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 </body>
 </html>

@@ -136,6 +136,135 @@ export function renderGaugeBar(container, percentile, options = {}) {
   container.appendChild(el);
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * 직군 평균 요구 연차와 내 연차를 같은 트랙 위 마커 두 개로 겹쳐서 갭을 한 번에 보여준다.
+ * "내 연차" 마커는 드래그(마우스/터치)와 방향키로 직접 옮길 수 있는 슬라이더 겸용 컴포넌트다.
+ * avgYears: 직군 평균 요구 연차(null이면 표본 자체가 없어 비교 불가). myYears: 초기 위치로 쓸 연차.
+ * onChange(years): 사용자가 마커를 옮길 때마다(드래그 중 실시간) 호출된다.
+ */
+export function renderYearsGapBar(container, { avgYears, myYears, onChange } = {}) {
+  container.innerHTML = '';
+
+  if (avgYears == null) {
+    container.innerHTML = '<div class="empty-state">비교할 연차 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // 스케일은 avgYears만 기준으로 고정한다 — myYears로도 계산하면 드래그로 myYears가 커질 때마다
+  // 스케일 자체가 같이 늘어나 마커가 계속 도망가는 문제가 생긴다.
+  const maxScale = Math.max(Math.ceil(avgYears * 2.2), 8);
+  const clampYears = (y) => Math.min(maxScale, Math.max(0, y));
+  const toPct = (y) => Math.min(97, Math.max(3, (y / maxScale) * 100));
+
+  let currentYears = clampYears(myYears);
+
+  const el = document.createElement('div');
+  el.className = 'years-gap';
+  el.innerHTML = `
+    <div class="years-gap-track" role="slider" tabindex="0" aria-label="내 연차 (드래그 또는 방향키로 조절)"
+         aria-valuemin="0" aria-valuemax="${maxScale}" aria-valuenow="${currentYears}">
+      <div class="years-gap-band"></div>
+      <div class="years-gap-marker years-gap-marker--avg" style="left:${toPct(avgYears)}%;">
+        <span class="years-gap-marker__label years-gap-marker__label--gap"></span>
+        <span class="years-gap-marker__dot"></span>
+      </div>
+      <div class="years-gap-marker years-gap-marker--me" style="left:${toPct(currentYears)}%;">
+        <span class="years-gap-marker__dot"></span>
+        <span class="years-gap-marker__label">내 연차 ${currentYears.toFixed(1)}년</span>
+      </div>
+    </div>
+    <div class="years-gap-scale"><span>0년</span><span>${maxScale}년</span></div>
+    <p class="years-gap-readout">직군 평균 요구 연차 <strong class="years-gap-readout__value">${avgYears.toFixed(1)}년</strong></p>
+  `;
+  container.appendChild(el);
+
+  const track = el.querySelector('.years-gap-track');
+  const band = el.querySelector('.years-gap-band');
+  const meMarker = el.querySelector('.years-gap-marker--me');
+  const meLabel = meMarker.querySelector('.years-gap-marker__label');
+  const gapLabel = el.querySelector('.years-gap-marker__label--gap');
+
+  // 라벨이 카드 좌우 경계를 넘어가면(마커가 트랙 양 끝 근처일 때) 가운데 정렬 대신
+  // 안쪽으로 밀어서 절대 container 밖으로 나가지 않게 한다.
+  function clampLabelToContainer(labelEl) {
+    labelEl.style.transform = 'translateX(-50%)';
+    const labelRect = labelEl.getBoundingClientRect();
+    const boundsRect = container.getBoundingClientRect();
+    const SAFE_MARGIN = 4;
+    let shift = 0;
+    if (labelRect.left < boundsRect.left + SAFE_MARGIN) {
+      shift = boundsRect.left + SAFE_MARGIN - labelRect.left;
+    } else if (labelRect.right > boundsRect.right - SAFE_MARGIN) {
+      shift = boundsRect.right - SAFE_MARGIN - labelRect.right;
+    }
+    if (shift !== 0) {
+      labelEl.style.transform = `translateX(calc(-50% + ${shift}px))`;
+    }
+  }
+
+  function paint(y) {
+    currentYears = clampYears(y);
+    const myPct = toPct(currentYears);
+    const avgPct = toPct(avgYears);
+    const lo = Math.min(avgPct, myPct);
+    const hi = Math.max(avgPct, myPct);
+    const gap = currentYears - avgYears;
+    const tone = gap >= 0 ? 'up' : 'down';
+
+    band.style.left = `${lo}%`;
+    band.style.width = `${Math.max(hi - lo, 0)}%`;
+    band.className = `years-gap-band years-gap-band--${tone}`;
+    meMarker.style.left = `${myPct}%`;
+    meLabel.textContent = `내 연차 ${currentYears.toFixed(1)}년`;
+    track.setAttribute('aria-valuenow', String(currentYears));
+    gapLabel.textContent = `${gap >= 0 ? '+' : '-'}${Math.abs(gap).toFixed(1)}년`;
+    gapLabel.className = `years-gap-marker__label years-gap-marker__label--gap years-gap-marker__label--${tone}`;
+
+    clampLabelToContainer(meLabel);
+    clampLabelToContainer(gapLabel);
+  }
+
+  paint(currentYears);
+
+  function yearsFromClientX(clientX) {
+    const rect = track.getBoundingClientRect();
+    const ratio = rect.width ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) : 0;
+    return Math.round((ratio * maxScale) / 0.5) * 0.5;
+  }
+
+  function onPointerMove(e) {
+    paint(yearsFromClientX(e.clientX));
+    onChange?.(currentYears);
+  }
+  function onPointerUp() {
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+  }
+  track.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    track.focus();
+    paint(yearsFromClientX(e.clientX));
+    onChange?.(currentYears);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  });
+
+  track.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      paint(currentYears + 0.5);
+      onChange?.(currentYears);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      paint(currentYears - 0.5);
+      onChange?.(currentYears);
+    }
+  });
+}
+
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 export function formatWon(amount) {
   if (amount == null) return '-';
   if (amount >= 10000) {

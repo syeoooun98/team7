@@ -200,6 +200,232 @@ export function computeCategorySkillFrequency(positions, categoryId) {
   return { total, ranking };
 }
 
+<<<<<<< HEAD
+=======
+// 원티드 API는 스킬 태그를 "언어/프레임워크/DB" 같은 종류로 구분해서 주지 않는다(DB.md 3.2절 —
+// skill_tags에 안정적 분류 필드 자체가 없음). 그래서 실제로 자주 등장하는 스킬 이름을 수동으로
+// 묶어서 UI에서만 그룹핑한다. 목록에 없는 이름은 '기타'로 빠진다.
+// 개발/디자인/마케팅/영업/HR/엔지니어링/바이오 등 여러 직군의 실제 position_skill_tags를
+// Supabase에서 직접 조회해 등장 빈도가 있는 이름들 위주로 묶었다(전수는 아님).
+const SKILL_GROUPS = [
+  {
+    key: 'language',
+    label: '언어',
+    skills: ['Python', 'JavaScript', 'Java', 'TypeScript', 'C++', 'C', 'C / C++', 'Kotlin', 'Go', 'C#', 'PHP', 'Swift', 'Rust', 'Scala', 'Ruby', 'Dart', 'R'],
+  },
+  {
+    key: 'web-basics',
+    label: '웹 기본기',
+    skills: ['HTML', 'CSS'],
+  },
+  {
+    key: 'framework',
+    label: '프레임워크·라이브러리',
+    skills: ['React', 'React.js', 'Spring Framework', 'Spring Boot', 'Node.js', 'NodeJS', 'Next.js', 'Django', 'Nest.js', 'Vue.js', 'jQuery', 'FastAPI', 'JPA', 'Express', 'Flask', 'Angular', '.NET', 'ASP.NET', 'Restful API'],
+  },
+  {
+    key: 'database',
+    label: '데이터베이스',
+    skills: ['MySQL', 'SQL', 'PostgreSQL', 'MongoDB', 'Redis', 'RDBMS', 'NoSQL', 'ElasticSearch', 'Oracle', 'MariaDB', 'DynamoDB', 'Firebase'],
+  },
+  {
+    key: 'infra',
+    label: '인프라·클라우드',
+    skills: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'Jenkins', 'Nginx', 'Git', 'GitHub', 'GitLab', 'Azure', 'GCP', 'CI/CD', 'Terraform'],
+  },
+  {
+    key: 'data-ai',
+    label: 'AI·데이터',
+    skills: ['PyTorch', 'Tensorflow', 'ML', 'OpenCV', '딥 러닝', '머신러닝', '데이터 분석', 'Pandas', 'NumPy', 'Spark', 'Hadoop', 'Airflow', 'Tableau'],
+  },
+  {
+    key: 'mobile',
+    label: '모바일',
+    skills: ['Android', 'iOS', 'Flutter', 'React Native'],
+  },
+  {
+    key: 'game-dev',
+    label: '게임 개발',
+    skills: ['Unreal Engine', 'Unity3D', 'Maya', 'OpenGL', 'VR', '3D 모델링', 'HLSL', 'Perforce', 'Adobe Animate'],
+  },
+  {
+    key: 'design',
+    label: '디자인',
+    skills: [
+      'Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'Photoshop Elements', 'Sketch', '스케치', 'Zeplin', 'Adobe XD', 'Adobe',
+      'UI 디자인', 'UX 디자인', '그래픽 디자인', '서비스 디자인', '웹 디자인', '제품 디자인', 'After Effect', 'ProtoPie', '타이포그래피', '인터랙션 디자인',
+    ],
+  },
+  {
+    key: 'media-production',
+    label: '영상·미디어 제작',
+    skills: ['Adobe Premiere', 'Final Cut Studio', '파이널 컷 프로', '영상 편집', '영상', 'Youtube', '카메라', '편집', '미디어 준비', '감독'],
+  },
+  {
+    key: 'marketing',
+    label: '마케팅·광고',
+    skills: [
+      'Google Analytics', 'GA', '마케팅 전략', '마케팅 운영', '마케팅 분석', '마케팅 관리', 'Amplitude', '마케팅 이벤트 기획', 'CRM', '홍보',
+      '브랜딩', '광고 대행사', '콘텐츠 제작', '광고 운영', '마케팅 커뮤니케이션', '컨텐츠 마케팅', '광고 관리', '인바운드 마케팅', 'SEO', '퍼포먼스 마케팅',
+    ],
+  },
+  {
+    key: 'sales-biz',
+    label: '영업·비즈니스',
+    skills: ['영업', '영업 관리', '영업 담당자', 'B2B', '영업 프로세스', '영업 운영', '솔루션 판매', '영업 지원', 'B2B 마케팅', '컨설팅', '전략 분석', '전략 기획', '사업 계획', '사업 담당', '사업 전략', 'Product Management'],
+  },
+  {
+    key: 'hr',
+    label: '인사·HR',
+    skills: ['HRM', '인사 관리', '채용', '평가', '보상', 'HR 전략', 'LinkedIn', '노무 관리', '조직 문화', '급여 관리', '리크루터', 'HRD', 'HR 컨설팅'],
+  },
+  {
+    key: 'customer-service',
+    label: '고객서비스·리테일',
+    skills: ['고객 만족', '고객 경험', '고객 중심', '고객 유지', '매장 운영', '매장 관리', '패션', '직원 교육', 'POS', '고객 지원', '고객 관계'],
+  },
+  {
+    key: 'finance-accounting',
+    label: '재무·회계',
+    skills: ['세무 회계', '자금 세탁 방지', '은행업', '재무 관리', 'IR', 'ERP 구현', '투자 전략', '회계사', 'CPA', 'AML', '투자 관리', 'SAP', '회계'],
+  },
+  {
+    key: 'security',
+    label: '보안',
+    skills: ['정보 보안', '보안 운영', '보안 정책'],
+  },
+  {
+    key: 'engineering-design',
+    label: '엔지니어링·설계',
+    skills: ['Solidworks', 'Creo', 'AutoCAD', 'CAD', '설계', 'ProE', 'Solidworks Simulation', 'PLC', 'PLC 프로그래밍', 'ANSYS', '로봇', '로봇 프로그래밍', '메카트로닉스', 'ORCAD', 'NX', '전기', '네트워크 운영'],
+  },
+  {
+    key: 'construction',
+    label: '건설·건축',
+    skills: ['인테리어 디자인', '건설', '건설 관리', '건축 도면', '건축 설계', '건축', 'SketchUp', '프로젝트 관리'],
+  },
+  {
+    key: 'logistics-scm',
+    label: '물류·SCM',
+    skills: ['물류', '물류 관리', '물류 지원', '자동화 구축', '재고 관리', '재고 정확도', '유통', '물류 엔지니어링', 'SCM', '구매', '구매 주문', '구매 프로세스', '공급자 관리'],
+  },
+  {
+    key: 'quality-manufacturing',
+    label: '품질·생산관리',
+    skills: ['GMP', 'ISO', 'ISO 13485', '품질 관리', '품질 시스템', '품질 향상', '기록 관리', 'Fusion360', '납땜'],
+  },
+  {
+    key: 'bio-pharma',
+    label: '바이오·제약',
+    skills: [
+      '의료 기기', '허가 환경', '의료 장비', '화학 생물학', '의약 화학', '임상 연구', '약사', '고분자 화학',
+      '유기 화학', '신약 개발', '바이오', '유기 합성', '실험 설계', 'NMR', 'HPLC', '제형 개발', '화학 정보학', '임상 시험', 'LCMS',
+    ],
+  },
+  {
+    key: 'legal',
+    label: '법률',
+    skills: ['변호사', '법무', '법률 지원', '법률 문서', '법률 보조', '법률', '법학', '계약 분쟁', '사무직'],
+  },
+  {
+    key: 'education-content',
+    label: '교육·콘텐츠',
+    skills: ['소프트웨어 교육', '교육 기술', '시장 조사', '콘텐츠 개발', '온라인 교육', '영어 교육', '교육', '콘텐츠 전략', '콘텐츠 관리'],
+  },
+  {
+    key: 'collab',
+    label: '협업 툴·오피스',
+    skills: ['JIRA', 'Notion', 'Confluence', 'Slack', 'Microsoft 365', 'Excel', 'PowerPoint', 'Word', 'Google Workspace', 'ERP 소프트웨어', 'Flex'],
+  },
+  {
+    key: 'qa',
+    label: 'QA',
+    skills: ['QA 엔지니어링', 'QA', '테스트 자동화'],
+  },
+];
+
+const SKILL_NAME_TO_GROUP_KEY = new Map();
+SKILL_GROUPS.forEach((g) => g.skills.forEach((s) => SKILL_NAME_TO_GROUP_KEY.set(s.toLowerCase(), g.key)));
+
+/**
+ * computeCategorySkillFrequency().ranking을 언어/프레임워크/DB 등으로 묶는다.
+ * 매핑되지 않은 스킬은 '기타' 그룹으로 모으고, 그룹 내부는 기존 count 내림차순을 유지한다.
+ * 항목이 하나도 없는 그룹은 결과에서 제외한다.
+ */
+export function groupSkillRanking(ranking) {
+  const buckets = new Map(SKILL_GROUPS.map((g) => [g.key, { key: g.key, label: g.label, items: [] }]));
+  buckets.set('etc', { key: 'etc', label: '기타', items: [] });
+
+  ranking.forEach((s) => {
+    const groupKey = SKILL_NAME_TO_GROUP_KEY.get(s.name.toLowerCase()) || 'etc';
+    buckets.get(groupKey).items.push(s);
+  });
+
+  return [...SKILL_GROUPS.map((g) => g.key), 'etc'].map((key) => buckets.get(key)).filter((b) => b.items.length > 0);
+}
+
+// 미보유 스킬 학습 로드맵(관련 자격증 제안)에 쓰는 참고용 큐레이션 데이터 — 실제 지원자/채용 통계가 아니다.
+// Supabase 공고 텍스트(requirements/preferred_points)에서 자격증 이름과 스킬 태그의 동시 언급 빈도를
+// 실제로 마이닝해봤지만(예: AWS ↔ RHCSA/CCNA), 표본이 공고 2~5건 수준으로 작아 우연한 동반 언급
+// (예: AWS ↔ OPIc, 마케팅 전략 ↔ CPA)과 실제 연관성을 구분할 신뢰도가 없었다. 그래서 통계 대신
+// 스킬(또는 스킬이 속한 분류)과 실제로 존재하는 자격증 중 통상적으로 관련 있다고 알려진 것을
+// 사람이 골라 매핑했다 — 측정값이 아니라 참고 가이드로만 사용한다.
+const SKILL_SPECIFIC_CERTS = {
+  AWS: { certs: ['AWS Certified Solutions Architect – Associate', 'AWS Certified Developer – Associate'], note: '클라우드 실무 역량을 공식적으로 증명하는 벤더 자격증' },
+  Docker: { certs: ['Docker Certified Associate'], note: '컨테이너 운영 역량 증빙' },
+  Kubernetes: { certs: ['CKA (Certified Kubernetes Administrator)'], note: '컨테이너 오케스트레이션 실무 역량 증빙' },
+  SQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  MySQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  PostgreSQL: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 증명 국가공인자격' },
+  Linux: { certs: ['리눅스마스터', 'RHCSA'], note: '리눅스 운영 역량 증빙' },
+  '정보 보안': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  '보안 운영': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  '보안 정책': { certs: ['정보보안기사', 'CISA'], note: '보안 정책·감사 역량 증빙' },
+  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애널리틱스 역량 인증' },
+  '마케팅 분석': { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
+  '데이터 분석': { certs: ['ADsP', '빅데이터분석기사'], note: '데이터 분석 국가공인자격' },
+  PyTorch: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
+  Tensorflow: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
+  회계: { certs: ['공인회계사(CPA)', '전산회계', '재경관리사'], note: '회계 실무·전문성 증빙' },
+  '세무 회계': { certs: ['세무사', '전산세무'], note: '세무 실무 전문성 증빙' },
+  '물류 관리': { certs: ['물류관리사', '유통관리사'], note: '물류·유통 실무 국가공인자격' },
+  SCM: { certs: ['물류관리사', '국제무역사'], note: '공급망·무역 실무 자격' },
+};
+
+// 스킬 이름 개별 매핑에 없으면 groupSkillRanking()이 쓰는 SKILL_NAME_TO_GROUP_KEY로 분류를 찾아
+// 그룹 단위 대표 자격증으로 대체한다.
+const CERT_GROUP_FALLBACK = {
+  language: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙으로 흔히 요구되는 국가공인자격' },
+  'web-basics': { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  framework: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  database: { certs: ['SQLD', 'SQLP'], note: '데이터베이스 설계·쿼리 역량 국가공인자격' },
+  infra: { certs: ['리눅스마스터', '네트워크관리사'], note: '서버·네트워크 운영 역량 증빙' },
+  'data-ai': { certs: ['빅데이터분석기사', 'ADsP'], note: '데이터 분석 국가공인자격' },
+  mobile: { certs: ['정보처리기사'], note: '소프트웨어 개발 기초 소양 증빙' },
+  design: { certs: ['GTQ', '웹디자인기능사'], note: '디자인 툴 활용 역량 국가공인자격' },
+  marketing: { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
+  'sales-biz': { certs: ['국제무역사', '유통관리사'], note: '영업·무역 실무 자격' },
+  hr: { certs: ['공인노무사'], note: '인사·노무 실무 전문 자격' },
+  'finance-accounting': { certs: ['공인회계사(CPA)', '전산회계'], note: '회계·재무 실무 전문 자격' },
+  security: { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
+  'engineering-design': { certs: ['전기기사', '일반기계기사'], note: '설계·엔지니어링 실무 국가공인자격' },
+  construction: { certs: ['건축기사', '토목기사'], note: '건설·건축 실무 국가공인자격' },
+  'logistics-scm': { certs: ['물류관리사', '유통관리사'], note: '물류·유통 실무 국가공인자격' },
+  'quality-manufacturing': { certs: ['품질경영기사'], note: '품질 관리 실무 국가공인자격' },
+  'bio-pharma': { certs: ['위생사'], note: '바이오·제약 관련 국가공인자격' },
+  legal: { certs: ['변호사'], note: '법률 실무 전문 자격' },
+  qa: { certs: ['ISTQB'], note: 'SW 테스트 국제 자격증' },
+};
+
+/** 스킬 이름 → { certs: string[], note: string } | null. 개별 매핑 → 그룹 대체 순으로 조회한다. */
+export function getCertSuggestion(skillName) {
+  if (SKILL_SPECIFIC_CERTS[skillName]) return SKILL_SPECIFIC_CERTS[skillName];
+  const groupKey = SKILL_NAME_TO_GROUP_KEY.get(skillName.toLowerCase());
+  if (groupKey && CERT_GROUP_FALLBACK[groupKey]) return CERT_GROUP_FALLBACK[groupKey];
+  return null;
+}
+
+>>>>>>> 870c06104acbc85d822ac30db06141e62ddb4cd1
 // annual_to=100은 "경력 상한 없음(무관)"을 뜻하는 원티드 API의 관례적 센티넬 값이라 평균 계산에서 제외한다.
 const ANNUAL_TO_UNLIMITED_SENTINEL = 99;
 
