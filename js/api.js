@@ -134,11 +134,11 @@ export function subscribeRealtime(onChange) {
 export function extractDistrict(fullLocation, fallback) {
   if (!fullLocation) return fallback || '기타';
   const tokens = fullLocation.replace(/^주소\s*/, '').split(/\s+/);
-  const guTok = tokens.find((t) => /^[가-�]{1,6}구$/.test(t));
+  const guTok = tokens.find((t) => /^[가-힣]{1,6}구$/.test(t));
   if (guTok) return guTok;
-  const siTok = tokens.find((t) => /^[가-�]{1,6}시$/.test(t));
+  const siTok = tokens.find((t) => /^[가-힣]{1,6}시$/.test(t));
   if (siTok) return siTok;
-  const gunTok = tokens.find((t) => /^[가-�]{1,6}군$/.test(t));
+  const gunTok = tokens.find((t) => /^[가-힣]{1,6}군$/.test(t));
   if (gunTok) return gunTok;
   return fallback || '기타';
 }
