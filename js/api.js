@@ -51,15 +51,9 @@ export const fetchPositionSkillTags = () =>
 export const fetchPositionApplyTypes = () =>
   fetchAllRows('position_additional_apply_types', 'position_id, apply_type', { orderCols: ['position_id'] });
 
-/** 특정 회사의 company_tags(재택근무 등 배지) — 5.5 진단 화면에서 선택한 회사에 한해 소량 조회 */
-export async function fetchCompanyTagsByCompanyId(companyId) {
-  const { data, error } = await supabase
-    .from('company_tags')
-    .select('company_id, tag_type_id, title')
-    .eq('company_id', companyId);
-  if (error) throw new Error(`[company_tags] ${error.message}`);
-  return data || [];
-}
+/** 회사 단위 배지(재택근무 등) 전량 — 4. 배지 벤치마킹(실측)에서 동종 업계 빈도 계산용 */
+export const fetchCompanyTags = () =>
+  fetchAllRows('company_tags', 'company_id, tag_type_id, title', { orderCols: ['company_id'] });
 
 /* ------------------------------------------------------------------ */
 /* 자체 집계 데모 테이블 (category_daily_snapshot / skill_tag_trend / ...) */
@@ -73,9 +67,11 @@ export const fetchCategoryDailySnapshot = () =>
   );
 
 export const fetchSkillTagTrend = () =>
-  fetchAllRows('skill_tag_trend', 'id, skill_name, period_type, period_start, mention_count, delta_pct_vs_prev, is_demo', {
-    orderCols: ['period_start'],
-  });
+  fetchAllRows(
+    'skill_tag_trend',
+    'id, skill_name, period_type, period_start, mention_count, delta_pct_vs_prev, is_demo',
+    { orderCols: ['period_start'] }
+  );
 
 export const fetchCategoryMarketStats = () =>
   fetchAllRows(
@@ -83,6 +79,10 @@ export const fetchCategoryMarketStats = () =>
     'id, category_tag_id, category_name, snapshot_date, reward_avg, reward_p50, reward_p90, is_demo'
   );
 
+/**
+ * 매력 태그별 지원자수/합격률 — 전량 시연용 합성값(is_demo=true 87/87, 실측 0건).
+ * ATS 미연동으로 실데이터가 없어 창작된 값이며, UI에서 반드시 "데모" 라벨과 함께만 노출한다.
+ */
 export const fetchTagEffectStats = () =>
   fetchAllRows('tag_effect_stats', 'tag_id, tag_name, snapshot_date, avg_applicants, avg_pass_rate, is_demo', {
     orderCols: ['tag_id'],
@@ -99,6 +99,7 @@ const REALTIME_TABLES = [
   'position_tags',
   'position_skill_tags',
   'position_additional_apply_types',
+  'company_tags',
   'category_daily_snapshot',
   'skill_tag_trend',
   'category_market_stats',
@@ -163,6 +164,7 @@ export async function fetchAllRaw() {
     positionTags,
     positionSkillTags,
     positionApplyTypes,
+    companyTags,
     categoryDailySnapshot,
     skillTagTrend,
     categoryMarketStats,
@@ -174,6 +176,7 @@ export async function fetchAllRaw() {
     fetchPositionTags(),
     fetchPositionSkillTags(),
     fetchPositionApplyTypes(),
+    fetchCompanyTags(),
     fetchCategoryDailySnapshot(),
     fetchSkillTagTrend(),
     fetchCategoryMarketStats(),
@@ -187,6 +190,7 @@ export async function fetchAllRaw() {
     positionTags,
     positionSkillTags,
     positionApplyTypes,
+    companyTags,
     categoryDailySnapshot,
     skillTagTrend,
     categoryMarketStats,

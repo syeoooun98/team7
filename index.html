@@ -36,17 +36,15 @@
     </div>
 
     <nav class="subtab-nav" data-mode-tabs="applicant" aria-label="지원자 화면 탭">
-      <button type="button" class="tab-btn tab-btn--active" data-tab="home">0. 마켓 홈</button>
-      <button type="button" class="tab-btn" data-tab="roadmap">1. 취준 로드맵</button>
-      <button type="button" class="tab-btn" data-tab="filter">3. 우대조건 필터</button>
-      <button type="button" class="tab-btn tab-btn--disabled" data-tab="company-health">2. 기업 건강도 비교 <span class="soon-badge">준비중</span></button>
-      <button type="button" class="tab-btn" data-tab="personalized">4. 맞춤 재정렬</button>
+      <button type="button" class="tab-btn tab-btn--active" data-tab="home">마켓 홈</button>
+      <button type="button" class="tab-btn" data-tab="roadmap">취준 로드맵</button>
+      <button type="button" class="tab-btn" data-tab="filter">우대조건 필터</button>
+      <button type="button" class="tab-btn" data-tab="personalized">맞춤 재정렬</button>
     </nav>
 
     <nav class="subtab-nav hidden" data-mode-tabs="recruiter" aria-label="채용자 화면 탭">
-      <button type="button" class="tab-btn tab-btn--active" data-tab="diagnosis">1. 공고 경쟁력 진단</button>
-      <button type="button" class="tab-btn" data-tab="trend">3. 채용 조건 트렌드</button>
-      <button type="button" class="tab-btn tab-btn--disabled" data-tab="pipeline">2. 파이프라인 위험 알림 <span class="soon-badge">준비중</span></button>
+      <button type="button" class="tab-btn tab-btn--active" data-tab="diagnosis">공고 경쟁력 진단</button>
+      <button type="button" class="tab-btn" data-tab="trend">트렌드</button>
     </nav>
 
     <main class="app-main">
@@ -127,7 +125,7 @@
               </section>
 
               <section class="chart-card chart-card--wide">
-                <h2>참고: 스킬 태그 트렌드 요약 <button type="button" class="link-btn" data-jump-mode-tab="recruiter:trend">채용 조건 트렌드 탭에서 자세히 보기 →</button></h2>
+                <h2>참고: 스킬 태그 트렌드 요약 <button type="button" class="link-btn" data-jump-mode-tab="recruiter:trend">트렌드 탭에서 자세히 보기 →</button></h2>
                 <p class="chart-card__desc">직무 단위 트렌드(위)와는 별개로, 공고에 붙은 기술 스택 태그 언급량 기준 전주 대비 변화입니다.</p>
                 <div id="home-skill-trend" class="mover-list mover-list--inline"></div>
               </section>
@@ -228,18 +226,6 @@
           </div>
         </section>
 
-        <!-- 2. 기업 건강도 비교 (준비중) -->
-        <section class="tab-panel hidden" data-mode="applicant" data-tab="company-health">
-          <div class="placeholder-panel">
-            <h2>🚧 준비 중 — 기업 재무·인력 건강도 비교</h2>
-            <p>
-              이 화면은 <code>company_insight_snapshots</code>(평균연봉·퇴사율·인원변동율·업력·1인당 매출) 테이블이 필요하지만,
-              현재 Supabase(<code>team7-wanted</code>)에 아직 적재되지 않았습니다. v1 <code>/insight/company</code> 배치 연동이
-              완료되면 레이더 차트 + 세부 지표 테이블로 제공될 예정입니다.
-            </p>
-          </div>
-        </section>
-
         <!-- 4. 개인 맞춤형 공고 재정렬 (mypage.html 임베드 — 로그인/개인 프로필 전제) -->
         <section class="tab-panel hidden" data-mode="applicant" data-tab="personalized">
           <iframe class="personalized-frame" src="mypage.html" title="맞춤형 공고 재정렬 (마이페이지)"></iframe>
@@ -251,61 +237,85 @@
 
         <!-- 1. 공고 경쟁력 진단 -->
         <section class="tab-panel hidden" data-mode="recruiter" data-tab="diagnosis">
-          <div class="info-banner">
-            공고 단위 매력 태그는 API에 존재하지 않아, <strong>company_tags</strong>(회사 단위 배지)로 근사합니다.
-            <strong>tag_effect_stats</strong>의 지원자수/합격률은 ATS 연동 전이라 <u>전부 시연용 합성값</u>입니다(실제 지표 아님).
-            보상금 백분위는 <strong>category_market_stats</strong>의 평균/P50/P90 3개 지점 기반 근사치입니다.
-          </div>
-
           <div class="diagnosis-selectors">
-            <div class="filter-block">
-              <label class="filter-title" for="diag-company">회사 선택</label>
-              <select id="diag-company" class="filter-select"></select>
+            <div class="filter-block searchable-select">
+              <label class="filter-title" for="diag-company-search">회사 선택 <span class="filter-title__hint">(채용 분야별로 묶어 표시)</span></label>
+              <div class="company-select-row">
+                <input type="text" id="diag-company-search" class="filter-search-input" placeholder="회사명 검색…" autocomplete="off" />
+                <button type="button" id="diag-mycompany-toggle" class="mycompany-toggle-btn">☆ 우리 회사로 설정</button>
+              </div>
+              <div id="diag-company-options" class="searchable-select__list hidden"></div>
+            </div>
+            <div class="filter-block searchable-select">
+              <label class="filter-title" for="diag-position-search">진단할 공고 선택 <span class="filter-title__hint">(같은 회사의 다른 공고도 펼쳐서 볼 수 있어요)</span></label>
+              <div class="searchable-select__input-row">
+                <input type="text" id="diag-position-search" class="filter-search-input" placeholder="공고명 검색… (직무별로 묶어 표시)" autocomplete="off" />
+                <button type="button" id="diag-position-toggle" class="searchable-select__toggle" aria-label="같은 회사 공고 목록 펼치기">
+                  <span class="searchable-select__toggle-arrow">◂</span>
+                </button>
+              </div>
+              <div id="diag-position-options" class="searchable-select__list hidden"></div>
             </div>
             <div class="filter-block">
-              <label class="filter-title" for="diag-position">진단할 공고 선택</label>
-              <select id="diag-position" class="filter-select"></select>
+              <label class="filter-title">빠른 이동</label>
+              <button type="button" id="diag-mycompany-jump" class="mycompany-jump-btn">🏠 우리 회사 공고 경쟁력 보기</button>
             </div>
           </div>
 
           <div id="diag-empty" class="empty-state">회사와 공고를 선택하면 진단 결과가 표시됩니다.</div>
 
           <div id="diag-result" class="hidden">
+            <p class="section-block__desc">아래 카드는 선택한 회사·공고에 따라 함께 바뀝니다.</p>
+
+            <section class="chart-card chart-card--wide">
+              <h2>우리 회사 공고 <span class="section-tag">진단 대상</span></h2>
+              <div id="diag-own-position"></div>
+            </section>
+
+            <div class="chart-grid">
+              <section class="chart-card chart-card--wide">
+                <h2>경쟁 공고 한눈에 보기 <span class="section-tag">실측</span></h2>
+                <p class="chart-card__desc">
+                  같은 직군에서 경쟁하는 타사의 현재 오픈 공고를 보상금 높은순으로 표시합니다.
+                  각 경쟁 공고 아래에는 우리 공고와의 핵심 차이(보상금·우대조건·마감일)를 함께 표시합니다.
+                </p>
+                <div id="diag-competing-list" class="position-grid"></div>
+              </section>
+            </div>
+
+            <h3 class="ranking-group-title">💰 보상금 리포트</h3>
             <div class="chart-grid">
               <section class="chart-card">
-                <h2>보상금 시장 백분위 (근사치)</h2>
+                <h2>보상금 시장 백분위</h2>
                 <p class="chart-card__desc" id="diag-gauge-desc"></p>
                 <div id="diag-gauge"></div>
               </section>
 
               <section class="chart-card">
-                <h2>부족한 매력 태그 제안</h2>
-                <p class="chart-card__desc">우리 회사 배지에 없고, 지원자수/합격률이 높은 태그를 우선 제안합니다.</p>
-                <div id="diag-suggestions" class="mover-list"></div>
+                <h2>배지 획득 챌린지 <span class="section-tag">실측</span></h2>
+                <p class="chart-card__desc">
+                  <strong>category_market_stats</strong>의 업계 평균/상위 10% 보상금(실측)과 이 공고를 비교합니다.
+                  지원율 변화 예측은 실제 지원자 데이터가 없어 제공하지 않고, 목표 금액까지 남은 차액만 보여줍니다.
+                </p>
+                <div id="diag-badge-challenge" class="mover-list"></div>
               </section>
+            </div>
 
+            <div class="chart-grid">
               <section class="chart-card chart-card--wide">
-                <h2>매력 태그별 평균 지원자수 · 서류합격률 비교 (TOP 10)</h2>
-                <div id="diag-tag-ranking" class="chart-body"></div>
-                <div id="diag-tag-table" class="tag-effect-table"></div>
+                <h2>회사 배지 벤치마킹 <span class="section-tag">실측</span></h2>
+                <p class="chart-card__desc">
+                  <strong>company_tags</strong>(원티드가 실제로 부여한 회사 배지) 기준, 동일 직군에 공고를 낸 회사들 중
+                  각 배지를 보유한 비율입니다. 창작 수치 없이 실제 보유 현황만 집계했습니다.
+                </p>
+                <p class="chart-card__desc" id="diag-badge-desc"></p>
+                <div id="diag-badge-ranking" class="mover-list"></div>
               </section>
             </div>
           </div>
         </section>
 
-        <!-- 2. 파이프라인 위험 알림 (준비중) -->
-        <section class="tab-panel hidden" data-mode="recruiter" data-tab="pipeline">
-          <div class="placeholder-panel">
-            <h2>🚧 준비 중 — 파이프라인 병목·이탈 위험 알림</h2>
-            <p>
-              이 화면은 <code>applications</code>·<code>application_status_history</code>·<code>position_hiring_goals</code>·<code>risk_alerts</code>·<code>alert_actions</code>
-              등 ATS 테이블이 필요합니다. 기업별 <code>X-Wanted-Dashboard-Service-Key</code>를 아직 발급받지 못해 실데이터 연동이 차단된 상태이며,
-              1차 버전에서는 목데이터 없이 범위에서 제외했습니다.
-            </p>
-          </div>
-        </section>
-
-        <!-- 3. 채용 조건 트렌드 -->
+        <!-- 3. 트렌드 -->
         <section class="tab-panel hidden" data-mode="recruiter" data-tab="trend">
           <div class="info-banner">
             <strong>skill_tag_trend</strong> 실측 적재분은 주간(<code>period_type='week'</code>) 8주치만 존재합니다.
@@ -325,16 +335,22 @@
               <p class="chart-card__desc">전주 대비 언급량 감소율 기준</p>
               <div id="trend-down" class="mover-list"></div>
             </section>
-
-            <section class="chart-card chart-card--wide">
-              <h2>스킬 태그 언급량 랭킹 (최신 주간 TOP 15)</h2>
-              <div id="trend-ranking" class="chart-body"></div>
-            </section>
           </div>
 
-          <div class="info-banner info-banner--muted">
-            공용 데이터 모듈 안내: 이 스킬 태그 트렌드는 지원자용 "마켓 홈 Zoom-in"과 "취준 로드맵"의 미보유 스킬 추천에도
-            동일 데이터로 재사용됩니다(PRD 6장).
+          <h3 class="ranking-group-title">🔥 핫 태그 랭크</h3>
+          <div class="chart-grid">
+            <section class="chart-card chart-card--donut">
+              <h2>스킬 태그 언급량 랭킹 (최신 주간 TOP 10)</h2>
+              <div id="trend-ranking" class="chart-body"></div>
+            </section>
+
+            <section class="chart-card chart-card--donut">
+              <h2>매력 태그 효과 시뮬레이션 <span class="section-tag section-tag--warn">데모</span></h2>
+              <p class="chart-card__desc">
+                ⚠️ <strong>tag_effect_stats</strong>는 실제 ATS 지원자 데이터가 없어 전부 시연용 합성값입니다(실측 0/87건).
+              </p>
+              <div id="trend-tag-effect-ranking" class="chart-body"></div>
+            </section>
           </div>
         </section>
 

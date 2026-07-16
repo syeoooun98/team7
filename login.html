@@ -6,7 +6,7 @@
 <title>Wanted 대시보드 - 로그인</title>
 <link rel="stylesheet" href="css/styles.css">
 <style>
-/* index.html / css/styles.css의 다크 테마 디자인 토큰을 그대로 재사용한다(새 색상 하드코딩 금지). */
+/* index.html / css/styles.css의 다크 테마 디자인 토큰(변수)만 재사용하고, 새 색상은 하드코딩하지 않는다. */
 :root{
   --bg: var(--color-bg); --card: var(--color-surface); --text: var(--color-text);
   --muted: var(--color-text-muted); --border: var(--color-border);
@@ -335,7 +335,7 @@ h2{font-size:16px; margin:0 0 14px;}
   var redirectTarget = ALLOWED_REDIRECTS.indexOf(redirectParam) !== -1 ? redirectParam : null;
 
   function renderLoggedIn(user, role) {
-    // redirectTarget으로 이동하는 경우에도(맞춤재정렬 탭 등에서 온 로그인 플로우) 항상
+    // redirectTarget으로 이동하는 경우에도(맞춤재정렬 탭 등에서 온 로그인 플로우 등) 항상
     // postMessage를 먼저 보낸다 — 리다이렉트 여부와 무관하게 부모(index.html 헤더)가
     // 로그인 사실을 알아야 모달을 닫고 버튼 라벨을 갱신할 수 있다.
     if (window.parent && window.parent !== window) {

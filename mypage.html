@@ -1328,7 +1328,7 @@
     // 요약탭: 북마크 공고 카운트
     // 주의: 이 값은 실제 bookmarked_positions 건수이며, "맞춤 정렬 공고"에서
     // 표본 데이터로 계산된 매칭 건수(#matched-count-badge)와는 다른 값이므로
-    // 절대 서로 덮어써서는 안 된다.
+    // 절대 서로 되어쓰어서는 안 된다.
     // ============================================================
     function loadBookmarkCount(profileId) {
         return sb.from("bookmarked_positions")
@@ -1538,7 +1538,7 @@
         if (!currentProfile) return;
         // 카운트는 항상 다시 조회해서 갱신
         loadBookmarkCount(currentProfile.id);
-        // 목록 뷰가 열려있는 상태라면 현재 보고 있는 페이지를 다시 조회
+        // 목록 뿰가 열려있는 상태라면 현재 보고 있는 페이지를 다시 조회
         var section = document.getElementById("bookmark-list-section");
         if (section && !section.classList.contains("hidden")) {
             loadBookmarkListPage(bookmarkListState.page);

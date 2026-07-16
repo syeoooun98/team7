@@ -1,4 +1,4 @@
-// 각 탭에서 필요한 파생 지표 계산 — 전부 순수 함수(입력 → 출력)로 작성해 테스트/재사용이 쉽게 한다.
+// 각 탭에서 필요한 파생 지표 계산 — 전부 순수 함수(입력 → 출력)로 작성해 테스트/재사용이 쉬게 한다.
 
 const URGENT_WITHIN_DAYS = 7;
 const KNOWN_APPLY_TYPES = ['foreigner', 'alternative_military', 'disabled_person'];
@@ -85,7 +85,7 @@ export function computeWeeklyOpenTrend(rows) {
   }));
 }
 
-/** 이번 주(최근 7일) 신규 등록/마감 종료 "플로우" 합계 + 전주 대비 증감율 */
+/** 이번 주(최근 7일) 신규 등록/마감 종료 "플로우" 합계 + 전주 대비 증감률 */
 export function computeNewClosedWeekly(rows) {
   const datesDesc = distinctSortedDatesDesc(rows);
   const last7 = datesDesc.slice(0, 7);
@@ -264,7 +264,7 @@ const SKILL_GROUPS = [
     label: '마케팅·광고',
     skills: [
       'Google Analytics', 'GA', '마케팅 전략', '마케팅 운영', '마케팅 분석', '마케팅 관리', 'Amplitude', '마케팅 이벤트 기획', 'CRM', '홍보',
-      '브랜딩', '광고 대행사', '콘텐츠 제작', '광고 운영', '마케팅 커뮤니케이션', '컨텐츠 마케팅', '광고 관리', '인바운드 마케팅', 'SEO', '퍼포먼스 마케팅',
+      '브랜딩', '광고 대행사', '콘텐츠 제작', '광고 운영', '마케팅 커뮤니케이션', '컴텐츠 마케팅', '광고 관리', '인바운드 마케팅', 'SEO', '퍼포맨스 마케팅',
     ],
   },
   {
@@ -310,7 +310,7 @@ const SKILL_GROUPS = [
   {
     key: 'quality-manufacturing',
     label: '품질·생산관리',
-    skills: ['GMP', 'ISO', 'ISO 13485', '품질 관리', '품질 시스템', '품질 향상', '기록 관리', 'Fusion360', '납땜'],
+    skills: ['GMP', 'ISO', 'ISO 13485', '품질 관리', '품질 시스템', '품질 향상', '기록 관리', 'Fusion360', '납때'],
   },
   {
     key: 'bio-pharma',
@@ -348,7 +348,7 @@ SKILL_GROUPS.forEach((g) => g.skills.forEach((s) => SKILL_NAME_TO_GROUP_KEY.set(
 /**
  * computeCategorySkillFrequency().ranking을 언어/프레임워크/DB 등으로 묶는다.
  * 매핑되지 않은 스킬은 '기타' 그룹으로 모으고, 그룹 내부는 기존 count 내림차순을 유지한다.
- * 항목이 하나도 없는 그룹은 결과에서 제외한다.
+ * 항목이 하나도 없는 그룹은 결과에서 제외된다.
  */
 export function groupSkillRanking(ranking) {
   const buckets = new Map(SKILL_GROUPS.map((g) => [g.key, { key: g.key, label: g.label, items: [] }]));
@@ -379,7 +379,7 @@ const SKILL_SPECIFIC_CERTS = {
   '정보 보안': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
   '보안 운영': { certs: ['정보보안기사', 'CISSP'], note: '보안 실무 국가공인·국제 자격증' },
   '보안 정책': { certs: ['정보보안기사', 'CISA'], note: '보안 정책·감사 역량 증빙' },
-  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애널리틱스 역량 인증' },
+  'Google Analytics': { certs: ['GAIQ (Google Analytics Individual Qualification)'], note: '구글 공식 애넌리틱스 역량 인증' },
   '마케팅 분석': { certs: ['GAIQ', 'ADsP'], note: '데이터 기반 마케팅 분석 역량 증빙' },
   '데이터 분석': { certs: ['ADsP', '빅데이터분석기사'], note: '데이터 분석 국가공인자격' },
   PyTorch: { certs: ['빅데이터분석기사'], note: 'AI/ML 직무 지원 시 데이터 분석 기초 역량 증빙으로 참고' },
@@ -423,7 +423,7 @@ export function getCertSuggestion(skillName) {
   return null;
 }
 
-// annual_to=100은 "경력 상한 없음(무관)"을 뜻하는 원티드 API의 관례적 센티넬 값이라 평균 계산에서 제외한다.
+// annual_to=100은 "경력 상한 없음(무관)"을 뜻하는 원티드 API의 관례적 센티널 값이라 평균 계산에서 제외한다.
 const ANNUAL_TO_UNLIMITED_SENTINEL = 99;
 
 export function computeCategoryAnnualStats(positions, categoryId) {
@@ -477,14 +477,36 @@ export function computeRoadmap(positions, { categoryId, mySkills, risingSkillNam
 
 /* ==================== 5.5 공고 경쟁력 진단 (채용자) ==================== */
 
+/**
+ * 회사 목록 + 각 회사의 "주력 분야"(자사 공고 중 가장 많이 등장하는 직군).
+ * 채용 분야별 그룹핑(회사 선택 검색창)에 사용한다.
+ */
 export function computeCompanyOptions(positions) {
   const map = new Map();
   positions.forEach((p) => {
     if (!p.company.id) return;
-    if (!map.has(p.company.id)) map.set(p.company.id, { id: p.company.id, name: p.company.name, count: 0 });
-    map.get(p.company.id).count += 1;
+    if (!map.has(p.company.id)) {
+      map.set(p.company.id, { id: p.company.id, name: p.company.name, count: 0, categoryCounts: new Map() });
+    }
+    const entry = map.get(p.company.id);
+    entry.count += 1;
+    const catName = p.category.name;
+    entry.categoryCounts.set(catName, (entry.categoryCounts.get(catName) || 0) + 1);
   });
-  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+  return Array.from(map.values())
+    .map((entry) => {
+      let primaryCategory = '미분류';
+      let max = 0;
+      entry.categoryCounts.forEach((cnt, name) => {
+        if (cnt > max) {
+          max = cnt;
+          primaryCategory = name;
+        }
+      });
+      return { id: entry.id, name: entry.name, count: entry.count, primaryCategory };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 }
 
 export function getPositionsForCompany(positions, companyId) {
@@ -492,38 +514,140 @@ export function getPositionsForCompany(positions, companyId) {
 }
 
 /**
- * 보상금 백분위 근사치.
- * category_market_stats는 (평균/P50/P90) 3개 지점만 제공하므로, 구간 선형보간으로 근사한다.
- * 표본 3개 지점 기반 근사치임을 UI에 반드시 명시한다.
+ * 보상금 백분위 — 같은 직군(category) 내 실제 positions.reward_total 분포에서의 정확한 순위.
+ * category_market_stats(평균/P50/P90 3개 지점) 보간 대신, 이미 클라이언트에 전량 로드된
+positions 데이터로 직접 순위를 계산해 근사가 아닌 정확한 값을 낸다.
  */
-export function computeRewardPercentile(reward, stats) {
-  if (reward == null || !stats) return null;
-  const { reward_p50: p50, reward_p90: p90 } = stats;
-  if (p50 == null || p90 == null) return null;
+export function computeRewardPercentileExact(reward, categoryPositions) {
+  if (reward == null) return null;
+  const sample = categoryPositions.filter((p) => p.reward_total != null);
+  if (sample.length < 2) return null;
+  const countAtOrBelow = sample.filter((p) => p.reward_total <= reward).length;
+  const percentile = Math.max(1, Math.min(99, Math.round((countAtOrBelow / sample.length) * 100)));
+  return { percentile, sampleSize: sample.length };
+}
 
-  let pct;
-  if (reward <= 0) {
-    pct = 0;
-  } else if (reward <= p50) {
-    pct = p50 > 0 ? (reward / p50) * 50 : 50;
-  } else if (p90 > p50 && reward <= p90) {
-    pct = 50 + ((reward - p50) / (p90 - p50)) * 40;
-  } else {
-    const over = p90 > 0 ? (reward - p90) / p90 : 0;
-    pct = 90 + Math.min(9, over * 30);
+/**
+ * 보상금 백분위 사다리의 눈금(100/90/50/10%)에 실제 금액을 함께 보여주기 위한 값 계산.
+ * 같은 직군 내 실제 positions.reward_total 분포에서 각 백분위에 해당하는 실측 금액을 구한다
+ * (nearest-rank 방식 — 보간 없이 정렬된 표본에서 해당 순위의 실제 값을 그대로 사용).
+ */
+export function computeRewardScaleValues(categoryPositions, percentiles = [100, 90, 50, 10]) {
+  const rewards = categoryPositions
+    .map((p) => p.reward_total)
+    .filter((r) => r != null)
+    .sort((a, b) => a - b);
+  if (!rewards.length) return null;
+
+  const n = rewards.length;
+  const valueAtPercentile = (pct) => {
+    const idx = Math.min(n - 1, Math.max(0, Math.round((pct / 100) * (n - 1))));
+    return rewards[idx];
+  };
+
+  return Object.fromEntries(percentiles.map((pct) => [pct, valueAtPercentile(pct)]));
+}
+
+/**
+ * 보상금 배지 획득 챌린지 — category_market_stats(reward_avg/reward_p90, 실측)만 사용한다.
+ * "인상하면 지원율이 오른다" 같은 전환율 예측은 ATS 데이터가 없어 넣지 않고,
+ * 목표 금액까지 얼마나 남았는지(달성 여부/금액 갭)만 보여준다.
+ */
+export function computeRewardBadgeChallenge(position, categoryMarketStats) {
+  const stats = categoryMarketStats.find((s) => s.category_tag_id === position.category.id);
+  if (!stats || position.reward_total == null) return null;
+  const { reward_avg: avg, reward_p90: p90 } = stats;
+  if (avg == null || p90 == null) return null;
+
+  const tiers = [
+    { key: 'average', label: '업계 평균 이상 배지', threshold: avg },
+    { key: 'top10', label: '상위 10% 배지', threshold: p90 },
+  ].map((t) => ({
+    ...t,
+    achieved: position.reward_total >= t.threshold,
+    gap: Math.max(0, t.threshold - position.reward_total),
+  }));
+
+  return { categoryName: stats.category_name, tiers, reward: position.reward_total };
+}
+
+/**
+ * 회사 배지(company_tags) 실측 벤치마킹 — 원티드가 실제로 부여한 배지 데이터만 사용한다(창작값 없음).
+ * 동일 직군에 공고를 낸 회사들(peer group) 중 각 배지를 보유한 회사 비율을 계산하고,
+ * 대상 회사가 이미 보유한 배지는 owned=true로 표시한다.
+ */
+export function computeCompanyBadgeBenchmark(positions, companyTagsByCompanyId, targetCompanyId, categoryId, topN = 8) {
+  const peerCompanyIds = new Set(
+    positions.filter((p) => p.category.id === categoryId && p.company.id != null).map((p) => p.company.id)
+  );
+  if (peerCompanyIds.size === 0) {
+    return { peerCompanyCount: 0, ranking: [], ownBadges: [] };
   }
-  return Math.max(1, Math.min(99, Math.round(pct)));
-}
 
-/** 회사가 아직 보유하지 않은 매력 태그 중 지원자수/합격률이 높은 것을 제안 */
-export function suggestAttractionTags(companyTagTitles, tagEffectStats, topN = 3) {
-  const have = new Set(companyTagTitles);
-  return [...tagEffectStats]
-    .filter((t) => !have.has(t.tag_name))
-    .sort((a, b) => (b.avg_applicants || 0) - (a.avg_applicants || 0))
+  const badgeCompanyCount = new Map();
+  peerCompanyIds.forEach((cid) => {
+    const uniqueBadges = new Set(companyTagsByCompanyId.get(cid) || []);
+    uniqueBadges.forEach((title) => {
+      badgeCompanyCount.set(title, (badgeCompanyCount.get(title) || 0) + 1);
+    });
+  });
+
+  const ownBadges = new Set(companyTagsByCompanyId.get(targetCompanyId) || []);
+
+  const ranking = Array.from(badgeCompanyCount.entries())
+    .map(([title, count]) => ({
+      title,
+      count,
+      pct: (count / peerCompanyIds.size) * 100,
+      owned: ownBadges.has(title),
+    }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, topN);
+
+  return { peerCompanyCount: peerCompanyIds.size, ranking, ownBadges: Array.from(ownBadges) };
 }
 
-export function rankTagEffectStats(tagEffectStats, topN = 10) {
+/** 매력 태그별 지원자수 랭킹 — tag_effect_stats 전량이 시연용 합성값(is_demo=true)임을 UI에서 반드시 표시한다 */
+export function rankTagEffectStats(tagEffectStats, topN = 8) {
   return [...tagEffectStats].sort((a, b) => (b.avg_applicants || 0) - (a.avg_applicants || 0)).slice(0, topN);
+}
+
+/** 경쟁 공고 — 같은 직군에서 같은 인재풀을 두고 경쟁하는 타사의 오픈 공고 */
+export function computeCompetingPositions(positions, targetPosition, { limit = 6 } = {}) {
+  return positions
+    .filter(
+      (p) =>
+        p.id !== targetPosition.id &&
+        p.company.id !== targetPosition.company.id &&
+        p.category.id === targetPosition.category.id &&
+        p.status === 'active' &&
+        (p.daysLeft === null || p.daysLeft >= 0)
+    )
+    .sort((a, b) => (b.reward_total || 0) - (a.reward_total || 0))
+    .slice(0, limit);
+}
+
+/**
+ * 진단 대상 공고(우리 공고) 대비, 경쟁 공고의 핵심 차이를 원자 데이터로 반환한다.
+ * 포맷팅(문구화)은 하지 않는다 — 표시 문구는 charts.js의 포맷 함수를 쓰는 app.js에서 조립한다.
+ * type: 'reward' → value: 금액 차이(양수면 상대가 더 높음)
+ * type: 'applyTypes' → value: 상대에게만 있는 우대조건 배열
+ * type: 'deadline' → value: 마감까지 남은 일수 차이(양수면 상대가 더 여유)
+ */
+export function computePositionDiffAgainst(ourPosition, otherPosition) {
+  const diffs = [];
+
+  const rewardDiff = (otherPosition.reward_total || 0) - (ourPosition.reward_total || 0);
+  if (rewardDiff !== 0) diffs.push({ type: 'reward', value: rewardDiff });
+
+  const ourApplyTypes = new Set(ourPosition.applyTypes);
+  const extraApplyTypes = otherPosition.applyTypes.filter((t) => !ourApplyTypes.has(t));
+  if (extraApplyTypes.length) diffs.push({ type: 'applyTypes', value: extraApplyTypes });
+
+  if (ourPosition.daysLeft != null && otherPosition.daysLeft != null) {
+    const dayDiff = otherPosition.daysLeft - ourPosition.daysLeft;
+    if (dayDiff !== 0) diffs.push({ type: 'deadline', value: dayDiff });
+  }
+
+  return diffs;
 }

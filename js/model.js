@@ -10,6 +10,7 @@ export function buildModel(raw) {
     positionTags,
     positionSkillTags,
     positionApplyTypes,
+    companyTags,
     categoryDailySnapshot,
     skillTagTrend,
     categoryMarketStats,
@@ -62,11 +63,18 @@ export function buildModel(raw) {
     .filter((t) => t.tag_type === 'category')
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
+  const companyTagsByCompanyId = new Map();
+  companyTags.forEach((ct) => {
+    if (!companyTagsByCompanyId.has(ct.company_id)) companyTagsByCompanyId.set(ct.company_id, []);
+    companyTagsByCompanyId.get(ct.company_id).push(ct.title);
+  });
+
   return {
     tagsById,
     companiesById,
     positions: enrichedPositions,
     categoryTagsList,
+    companyTagsByCompanyId,
     categoryDailySnapshot,
     skillTagTrend,
     categoryMarketStats,

@@ -1,5 +1,5 @@
 import { supabase } from './config.js';
-import { fetchAllRaw, fetchCompanyTagsByCompanyId, subscribeRealtime } from './api.js';
+import { fetchAllRaw, subscribeRealtime } from './api.js';
 import { buildModel } from './model.js';
 import {
   getCurrentApplicantProfileId,
@@ -27,14 +27,19 @@ import {
   computeRoadmap,
   computeCompanyOptions,
   getPositionsForCompany,
-  computeRewardPercentile,
-  suggestAttractionTags,
+  computeRewardPercentileExact,
+  computeRewardScaleValues,
+  computeRewardBadgeChallenge,
+  computeCompanyBadgeBenchmark,
   rankTagEffectStats,
+  computeCompetingPositions,
+  computePositionDiffAgainst,
 } from './aggregate.js';
 import {
   renderHBarChart,
+  renderDonutRanking,
   renderSparkline,
-  renderGaugeBar,
+  renderRankLadder,
   renderYearsGapBar,
   colorForKey,
   formatWon,
@@ -66,7 +71,7 @@ const state = {
   },
   searchVisibleCount: 24,
   roadmap: { categoryId: null, years: 0, mySkills: new Set(), expandedSkillGroups: new Set() },
-  diagnosis: { companyId: null, positionId: null, companyTags: [] },
+  diagnosis: { companyId: null, positionId: null },
   applicantProfileId: null,
   bookmarkedPositionIds: new Set(),
 };
@@ -74,6 +79,18 @@ const state = {
 const URGENT_WITHIN_DAYS = 7;
 const SEARCH_PAGE_SIZE = 24;
 const KNOWN_APPLY_TYPES = ['foreigner', 'alternative_military', 'disabled_person'];
+const MY_COMPANY_STORAGE_KEY = 'wanted-dashboard:my-company-id';
+
+/** "우리 회사" 지정은 로그인이 없는 1차 버전이라 브라우저 localStorage에 저장한다(기기별 설정) */
+function getMyCompanyId() {
+  const raw = localStorage.getItem(MY_COMPANY_STORAGE_KEY);
+  return raw ? Number(raw) : null;
+}
+
+function setMyCompanyId(id) {
+  if (id == null) localStorage.removeItem(MY_COMPANY_STORAGE_KEY);
+  else localStorage.setItem(MY_COMPANY_STORAGE_KEY, String(id));
+}
 
 /* ------------------------------------------------------------------ */
 /* 유틸                                                                 */
@@ -151,8 +168,17 @@ function positionCardHTML(p, opts = {}) {
           .join(', ')}</div>`
       : '';
 
+  const ownRibbonHTML = opts.own ? `<div class="own-ribbon">📌 진단 대상 공고 (우리 회사)</div>` : '';
+  const diffHTML =
+    opts.diffChips && opts.diffChips.length
+      ? `<div class="diff-row">${opts.diffChips
+          .map((d) => `<span class="tag-chip tag-chip--diff">${escapeHTML(d)}</span>`)
+          .join('')}</div>`
+      : '';
+
   return `
-    <article class="position-card">
+    <article class="position-card ${opts.own ? 'position-card--own' : ''}">
+      ${ownRibbonHTML}
       <div class="position-card__head">
         <div class="company-avatar" style="background:${avatarColor}">
           <span class="company-avatar__fallback">${escapeHTML(initial)}</span>
@@ -167,6 +193,7 @@ function positionCardHTML(p, opts = {}) {
       <div class="tag-row">${tagsHTML}${skillHTML}</div>
       ${applyHTML ? `<div class="apply-row">${applyHTML}</div>` : ''}
       ${matchedHTML}
+      ${diffHTML}
       <div class="position-card__meta">
         <span title="지역(구/시 단위는 주소 텍스트 기반 근사치)">📍 ${escapeHTML(p.district)} · ${escapeHTML(p.location || '-')}</span>
         <span>💰 ${formatWon(p.reward_total)}</span>
@@ -178,6 +205,65 @@ function positionCardHTML(p, opts = {}) {
       <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
     </article>
   `;
+}
+
+/** 공고 경쟁력 진단 — 진단 대상(우리 회사) 공고를 경쟁 공고 목록과 섞지 않고, 위에 가로로 길게 별도 배너로 보여준다 */
+function ownPositionBannerHTML(p, opts = {}) {
+  const badge = ddayBadge(p.daysLeft);
+  const initial = (p.company.name || '?').charAt(0);
+  const avatarColor = colorForKey(p.company.name);
+  const logoUrl = p.company.logo_url;
+  const bookmarked = !!opts.isBookmarked;
+  const bookmarkBtnHTML = `
+    <button type="button" class="bookmark-btn ${bookmarked ? 'bookmark-btn--active' : ''}"
+      data-position-id="${p.id}" aria-pressed="${bookmarked}"
+      aria-label="${bookmarked ? '북마크 해제' : '북마크 추가'}" title="${bookmarked ? '북마크 해제' : '북마크 추가'}">
+      <span aria-hidden="true">${bookmarked ? '★' : '☆'}</span>
+    </button>
+  `;
+
+  const tagNames = [p.category.name, ...p.subTags.map((t) => t.name)].filter(Boolean).slice(0, 4);
+  const tagsHTML = tagNames
+    .map((name, i) => `<span class="tag-chip ${i === 0 ? 'tag-chip--category' : ''}">${escapeHTML(name)}</span>`)
+    .join('');
+
+  return `
+    <div class="position-banner">
+      <span class="position-banner__ribbon">📌 우리 회사 공고</span>
+      <div class="company-avatar" style="background:${avatarColor}">
+        <span class="company-avatar__fallback">${escapeHTML(initial)}</span>
+        ${logoUrl ? `<img class="company-avatar__img" src="${escapeHTML(logoUrl)}" alt="" onerror="this.style.display='none'" />` : ''}
+      </div>
+      <div class="position-banner__main">
+        <p class="company-name">${escapeHTML(p.company.name)}</p>
+        <h3 class="position-banner__title">${escapeHTML(p.title)}</h3>
+        <div class="tag-row">${tagsHTML}</div>
+      </div>
+      <div class="position-banner__stats">
+        <span class="dday-badge dday-badge--${badge.tone}">${escapeHTML(badge.text)}</span>
+        <span>💰 ${formatWon(p.reward_total)}</span>
+        <span>🗓 ${p.due_time ? formatDate(p.due_time) : '상시채용'}</span>
+      </div>
+      <div class="position-banner__actions">
+        ${bookmarkBtnHTML}
+        <a class="card-cta" href="${p.url}" target="_blank" rel="noopener noreferrer">원티드에서 공고 보기 ↗</a>
+      </div>
+    </div>
+  `;
+}
+
+/** aggregate.js의 computePositionDiffAgainst가 반환한 원자 데이터를 화면 표시용 문구로 변환 */
+function formatDiffChip(diff) {
+  switch (diff.type) {
+    case 'reward':
+      return `보상금 ${diff.value > 0 ? '+' : '-'}${formatWon(Math.abs(diff.value))}`;
+    case 'applyTypes':
+      return `${diff.value.map(applyTypeLabel).join('·')} 추가 우대`;
+    case 'deadline':
+      return diff.value > 0 ? `마감 ${diff.value}일 여유` : `마감 ${Math.abs(diff.value)}일 촉박`;
+    default:
+      return '';
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -202,7 +288,13 @@ function renderCategoryMoverList(container, items) {
     .join('');
 }
 
-function renderSkillMoverList(container, items) {
+function renderSkillMoverList(container, items, { stagger = false } = {}) {
+  // 탭 재방문 등으로 다시 렌더링될 때 이전 순차 재생 타이머가 계속 누적되지 않도록 먼저 멈춘다.
+  if (container._moverStop) {
+    container._moverStop();
+    container._moverStop = null;
+  }
+
   if (!items || items.length === 0) {
     container.innerHTML = '<div class="empty-state">표시할 데이터가 없습니다.</div>';
     return;
@@ -218,6 +310,28 @@ function renderSkillMoverList(container, items) {
     `
     )
     .join('');
+
+  // 처음엔 정적으로 보이다가, 위에서부터 한 줄씩 1초 간격으로 딱 한 번씩만 튀는 효과를 재생한다.
+  if (stagger) {
+    const rows = $$('.mover-item', container);
+    let stopped = false;
+    let timerId = null;
+
+    function popRow(idx) {
+      if (stopped || idx >= rows.length) return;
+      const row = rows[idx];
+      row.classList.remove('mover-item--pop');
+      void row.getBoundingClientRect();
+      row.classList.add('mover-item--pop');
+      timerId = setTimeout(() => popRow(idx + 1), 1000);
+    }
+
+    timerId = setTimeout(() => popRow(0), 400);
+    container._moverStop = () => {
+      stopped = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }
 }
 
 function renderInlineSkillTrend(container, movers) {
@@ -827,28 +941,134 @@ function applyPendingApplyTypeJump() {
 /* 채용자 입장 — 1. 공고 경쟁력 진단 (5.5)                                  */
 /* ==================================================================== */
 
+const DIAG_OPTION_LIMIT = 50;
+
+/** 재조회(realtime refresh) 시에도 사용자가 고른 선택을 유지하고, 더 이상 존재하지 않을 때만 첫 항목으로 되돌린다 */
 function renderDiagCompanySelect() {
   const options = computeCompanyOptions(state.model.positions);
-  const sel = $('#diag-company');
-  sel.innerHTML = options
-    .map((c) => `<option value="${c.id}">${escapeHTML(c.name)} (공고 ${c.count}건)</option>`)
-    .join('');
-  if (options.length > 0) {
-    state.diagnosis.companyId = options[0].id;
-    sel.value = String(options[0].id);
-  }
+  const stillValid = options.some((c) => c.id === state.diagnosis.companyId);
+  if (!stillValid) state.diagnosis.companyId = options[0]?.id ?? null;
+  const current = options.find((c) => c.id === state.diagnosis.companyId);
+  $('#diag-company-search').value = current ? current.name : '';
 }
 
 function renderDiagPositionSelect() {
   const positions = getPositionsForCompany(state.model.positions, state.diagnosis.companyId);
-  const sel = $('#diag-position');
-  sel.innerHTML = positions.map((p) => `<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');
-  state.diagnosis.positionId = positions[0]?.id ?? null;
-  if (positions[0]) sel.value = String(positions[0].id);
+  const stillValid = positions.some((p) => p.id === state.diagnosis.positionId);
+  if (!stillValid) state.diagnosis.positionId = positions[0]?.id ?? null;
+  const current = positions.find((p) => p.id === state.diagnosis.positionId);
+  $('#diag-position-search').value = current ? current.title : '';
 }
 
-async function renderDiagnosis() {
-  const { positions, categoryMarketStats, tagEffectStats } = state.model;
+/** 검색창 옆 "우리 회사로 설정" 토글의 라벨/활성 상태를 현재 선택된 회사 기준으로 갱신 */
+function renderMyCompanyToggle() {
+  const btn = $('#diag-mycompany-toggle');
+  const myCompanyId = getMyCompanyId();
+  const isMine = myCompanyId != null && myCompanyId === state.diagnosis.companyId;
+  btn.textContent = isMine ? '★ 우리 회사' : '☆ 우리 회사로 설정';
+  btn.classList.toggle('mycompany-toggle-btn--active', isMine);
+}
+
+function renderDiagCompanyOptionsList(query) {
+  const options = computeCompanyOptions(state.model.positions);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? options.filter((c) => c.name.toLowerCase().includes(q)) : options;
+  const limited = filtered.slice(0, DIAG_OPTION_LIMIT);
+  const container = $('#diag-company-options');
+
+  const grouped = new Map();
+  limited.forEach((c) => {
+    const key = c.primaryCategory;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(c);
+  });
+  const groupNames = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b, 'ko'));
+
+  container.innerHTML = limited.length
+    ? groupNames
+        .map(
+          (g) => `
+      <div class="searchable-select__group-label">${escapeHTML(g)}</div>
+      ${grouped
+        .get(g)
+        .map(
+          (c) => `
+        <div class="searchable-select__option" data-company-id="${c.id}">
+          ${escapeHTML(c.name)} <span class="mover-item__detail">(공고 ${c.count}건)</span>
+        </div>
+      `
+        )
+        .join('')}
+    `
+        )
+        .join('') +
+      (filtered.length > limited.length
+        ? `<div class="searchable-select__empty">외 ${(filtered.length - limited.length).toLocaleString()}건 더 있음 — 검색어를 입력해 좁혀보세요.</div>`
+        : '')
+    : '<div class="searchable-select__empty">일치하는 회사가 없습니다.</div>';
+
+  container.classList.remove('hidden');
+  $$('.searchable-select__option', container).forEach((el) => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      state.diagnosis.companyId = Number(el.dataset.companyId);
+      renderDiagCompanySelect();
+      renderMyCompanyToggle();
+      container.classList.add('hidden');
+      renderDiagPositionSelect();
+      renderDiagnosis();
+    });
+  });
+}
+
+function renderDiagPositionOptionsList(query) {
+  const container = $('#diag-position-options');
+  if (!state.diagnosis.companyId) {
+    container.innerHTML = '<div class="searchable-select__empty">먼저 회사를 선택하세요.</div>';
+    container.classList.remove('hidden');
+    return;
+  }
+
+  const positions = getPositionsForCompany(state.model.positions, state.diagnosis.companyId);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? positions.filter((p) => p.title.toLowerCase().includes(q)) : positions;
+
+  const grouped = new Map();
+  filtered.forEach((p) => {
+    const key = p.category.name;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(p);
+  });
+  const groupNames = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b, 'ko'));
+
+  container.innerHTML = filtered.length
+    ? groupNames
+        .map(
+          (g) => `
+      <div class="searchable-select__group-label">${escapeHTML(g)}</div>
+      ${grouped
+        .get(g)
+        .map((p) => `<div class="searchable-select__option" data-position-id="${p.id}">${escapeHTML(p.title)}</div>`)
+        .join('')}
+    `
+        )
+        .join('')
+    : '<div class="searchable-select__empty">일치하는 공고가 없습니다.</div>';
+
+  container.classList.remove('hidden');
+  $$('.searchable-select__option', container).forEach((el) => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      state.diagnosis.positionId = Number(el.dataset.positionId);
+      renderDiagPositionSelect();
+      container.classList.add('hidden');
+      renderDiagnosis();
+    });
+  });
+}
+
+function renderDiagnosis() {
+  const { positions, companyTagsByCompanyId, categoryMarketStats } = state.model;
   const position = positions.find((p) => p.id === state.diagnosis.positionId);
 
   if (!position) {
@@ -859,79 +1079,150 @@ async function renderDiagnosis() {
   $('#diag-empty').classList.add('hidden');
   $('#diag-result').classList.remove('hidden');
 
-  const stats = categoryMarketStats.find((s) => s.category_tag_id === position.category.id);
-  const percentile = computeRewardPercentile(position.reward_total, stats);
-  $('#diag-gauge-desc').textContent = stats
-    ? `동일 직군(${stats.category_name}) 시장 평균 ${formatWon(stats.reward_avg)} · P50 ${formatWon(stats.reward_p50)} · P90 ${formatWon(stats.reward_p90)} 대비 (근사치, 표본 3개 지점 보간)`
-    : '해당 직군의 시장 벤치마크 데이터가 없습니다.';
-  renderGaugeBar($('#diag-gauge'), percentile, {
+  const categoryPositions = positions.filter((p) => p.category.id === position.category.id);
+
+  // 1. 보상금 백분위 (실측)
+  const rewardResult = computeRewardPercentileExact(position.reward_total, categoryPositions);
+  const rewardScale = computeRewardScaleValues(categoryPositions);
+  const rewardScaleLabels = rewardScale
+    ? Object.fromEntries(Object.entries(rewardScale).map(([pct, amount]) => [pct, formatWon(amount)]))
+    : null;
+  $('#diag-gauge-desc').textContent = rewardResult
+    ? `동일 직군(${position.category.name}) 공고 ${rewardResult.sampleSize.toLocaleString()}건과 실제 비교한 순위입니다.`
+    : '비교할 동일 직군 공고 데이터가 부족합니다.';
+  renderRankLadder($('#diag-gauge'), rewardResult ? rewardResult.percentile : null, {
     sublabel: `이 공고 보상금 ${formatWon(position.reward_total)}`,
+    markerValue: formatWon(position.reward_total),
+    scaleValues: rewardScaleLabels,
   });
 
-  $('#diag-suggestions').innerHTML = '<div class="empty-state">회사 배지 정보를 불러오는 중…</div>';
-  try {
-    const companyTags = await fetchCompanyTagsByCompanyId(position.company.id);
-    state.diagnosis.companyTags = companyTags;
-    const titles = companyTags.map((t) => t.title);
-    const suggestions = suggestAttractionTags(titles, tagEffectStats, 3);
+  // 2. 배지 획득 챌린지 (실측)
+  const challenge = computeRewardBadgeChallenge(position, categoryMarketStats);
+  const challengeContainer = $('#diag-badge-challenge');
+  challengeContainer.innerHTML = challenge
+    ? challenge.tiers
+        .map(
+          (t) => `
+      <div class="mover-item">
+        <span class="mover-item__name">${t.achieved ? '🏅' : '🔒'} ${escapeHTML(t.label)}</span>
+        <span class="mover-item__pct mover-item__pct--${t.achieved ? 'up' : 'neutral'}">${
+            t.achieved ? '달성' : formatWon(t.gap) + ' 부족'
+          }</span>
+        <span class="mover-item__detail">기준 ${formatWon(t.threshold)}</span>
+      </div>
+    `
+        )
+        .join('')
+    : '<div class="empty-state">비교할 직군 시장 벤치마크 데이터가 없습니다.</div>';
 
-    $('#diag-suggestions').innerHTML = suggestions.length
-      ? suggestions
-          .map(
-            (s) => `
-        <div class="mover-item">
-          <span class="mover-item__name">${escapeHTML(s.tag_name)}</span>
-          <span class="mover-item__detail">평균 지원자 ${s.avg_applicants ?? '-'}명 · 서류합격률 ${s.avg_pass_rate ?? '-'}%</span>
-        </div>
-      `
-          )
-          .join('') +
-        `<p class="chart-card__desc chart-card__desc--footnote">우리 회사 현재 배지: ${
-          titles.length ? titles.map((t) => escapeHTML(t)).join(', ') : '(등록된 배지 없음)'
-        }</p>`
-      : '<div class="empty-state">추가로 제안할 태그가 없습니다.</div>';
-  } catch (err) {
-    console.error(err);
-    $('#diag-suggestions').innerHTML = '<div class="empty-state">회사 배지 정보를 불러오지 못했습니다.</div>';
-  }
+  // 3. 회사 배지 벤치마킹 (실측)
+  const badge = computeCompanyBadgeBenchmark(positions, companyTagsByCompanyId, position.company.id, position.category.id, 8);
+  $('#diag-badge-desc').textContent = badge.peerCompanyCount
+    ? `동일 직군(${position.category.name}) 공고를 낸 회사 ${badge.peerCompanyCount.toLocaleString()}개사 기준. 우리 회사 현재 배지: ${
+        badge.ownBadges.length ? badge.ownBadges.map((t) => escapeHTML(t)).join(', ') : '(등록된 배지 없음)'
+      }`
+    : '비교할 동일 직군 회사 데이터가 부족합니다.';
+  const badgeContainer = $('#diag-badge-ranking');
+  badgeContainer.innerHTML = badge.ranking.length
+    ? badge.ranking
+        .map(
+          (b) => `
+      <div class="mover-item">
+        <span class="mover-item__name">${b.owned ? '✅' : '➕'} ${escapeHTML(b.title)}</span>
+        <span class="mover-item__pct mover-item__pct--neutral">${b.pct.toFixed(0)}%</span>
+        <span class="mover-item__detail">${b.count.toLocaleString()}개사 보유</span>
+      </div>
+    `
+        )
+        .join('')
+    : '<div class="empty-state">비교할 배지 데이터가 없습니다.</div>';
 
-  const ranking = rankTagEffectStats(tagEffectStats, 10);
-  renderHBarChart(
-    $('#diag-tag-ranking'),
-    ranking.map((t) => ({ label: t.tag_name, value: Math.round(t.avg_applicants || 0), colorKey: t.tag_name })),
-    { valueSuffix: '명', showPercentOfTotal: false, emptyMessage: '데이터가 없습니다.' }
-  );
+  // 4-a. 우리 회사 공고 — 경쟁 공고 목록과 섞이지 않도록 위에 가로로 길게 별도 표시
+  $('#diag-own-position').innerHTML = ownPositionBannerHTML(position, { isBookmarked: isPositionBookmarked(position.id) });
 
-  $('#diag-tag-table').innerHTML = `
-    <table class="tag-effect-table__inner">
-      <thead><tr><th>매력 태그</th><th>평균 지원자수</th><th>서류 합격률</th></tr></thead>
-      <tbody>
-        ${ranking
-          .map(
-            (t) => `<tr><td>${escapeHTML(t.tag_name)}</td><td>${t.avg_applicants ?? '-'}명</td><td>${t.avg_pass_rate ?? '-'}%</td></tr>`
-          )
-          .join('')}
-      </tbody>
-    </table>
-    <p class="chart-card__desc chart-card__desc--footnote">※ 지원자수/합격률은 ATS 실데이터가 없어 전부 시연용 합성값입니다.</p>
-  `;
+  // 4-b. 경쟁 공고 한눈에 보기 (실측) — 경쟁 공고마다 우리 공고와의 핵심 차이 표시
+  const competing = computeCompetingPositions(positions, position, { limit: 6 });
+  const competingCardsHTML = competing.length
+    ? competing
+        .map((p) =>
+          positionCardHTML(p, {
+            diffChips: computePositionDiffAgainst(position, p).map(formatDiffChip),
+            isBookmarked: isPositionBookmarked(p.id),
+          })
+        )
+        .join('')
+    : '<div class="empty-state">현재 경쟁 중인 타사 공고가 없습니다.</div>';
+  $('#diag-competing-list').innerHTML = competingCardsHTML;
 }
 
 function renderDiagnosisTab() {
   renderDiagCompanySelect();
   renderDiagPositionSelect();
+  renderMyCompanyToggle();
   renderDiagnosis();
 }
 
 function setupDiagnosisStaticListeners() {
-  $('#diag-company').addEventListener('change', (e) => {
-    state.diagnosis.companyId = Number(e.target.value);
-    renderDiagPositionSelect();
-    renderDiagnosis();
+  const companyInput = $('#diag-company-search');
+  const companyOptions = $('#diag-company-options');
+  companyInput.addEventListener('input', () => renderDiagCompanyOptionsList(companyInput.value));
+  companyInput.addEventListener('focus', () => renderDiagCompanyOptionsList(companyInput.value));
+  companyInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      companyOptions.classList.add('hidden');
+      renderDiagCompanySelect(); // 선택 없이 blur되면 입력값을 현재 선택으로 되돌림
+    }, 120);
   });
 
-  $('#diag-position').addEventListener('change', (e) => {
-    state.diagnosis.positionId = Number(e.target.value);
+  const positionInput = $('#diag-position-search');
+  const positionOptions = $('#diag-position-options');
+  const positionToggle = $('#diag-position-toggle');
+  // 눌러서 열 때(포커스)는 검색어로 필터링하지 않고 같은 회사의 전체 공고를 보여준다 —
+  // 안 그러면 입력창에 이미 채워진 현재 선택 공고명이 그대로 검색어로 쓰여서
+  // 제목이 다른 나머지 공고들이 걸러져 안 보이는 문제가 있었다.
+  positionInput.addEventListener('input', () => renderDiagPositionOptionsList(positionInput.value));
+  positionInput.addEventListener('focus', () => {
+    renderDiagPositionOptionsList('');
+    positionToggle.classList.add('searchable-select__toggle--open');
+  });
+  positionInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      positionOptions.classList.add('hidden');
+      positionToggle.classList.remove('searchable-select__toggle--open');
+      renderDiagPositionSelect();
+    }, 120);
+  });
+  positionToggle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (positionOptions.classList.contains('hidden')) {
+      positionInput.focus();
+    } else {
+      positionInput.blur();
+    }
+  });
+
+  $('#diag-mycompany-toggle').addEventListener('click', () => {
+    const myCompanyId = getMyCompanyId();
+    if (myCompanyId != null && myCompanyId === state.diagnosis.companyId) {
+      setMyCompanyId(null);
+      showToast('우리 회사 설정을 해제했습니다.');
+    } else if (state.diagnosis.companyId != null) {
+      setMyCompanyId(state.diagnosis.companyId);
+      showToast('이 회사를 우리 회사로 설정했습니다.');
+    }
+    renderMyCompanyToggle();
+  });
+
+  $('#diag-mycompany-jump').addEventListener('click', () => {
+    const myCompanyId = getMyCompanyId();
+    if (myCompanyId == null) {
+      showToast('먼저 회사를 선택하고 "우리 회사로 설정"을 눌러주세요.');
+      return;
+    }
+    state.diagnosis.companyId = myCompanyId;
+    renderDiagCompanySelect();
+    renderMyCompanyToggle();
+    renderDiagPositionSelect();
     renderDiagnosis();
   });
 }
@@ -941,16 +1232,24 @@ function setupDiagnosisStaticListeners() {
 /* ==================================================================== */
 
 function renderTrendTab() {
-  const { skillTagTrend } = state.model;
+  const { skillTagTrend, tagEffectStats } = state.model;
   const movers = computeSkillMovers(skillTagTrend, { topN: 3 });
-  renderSkillMoverList($('#trend-up'), movers.up);
-  renderSkillMoverList($('#trend-down'), movers.down);
+  renderSkillMoverList($('#trend-up'), movers.up, { stagger: true });
+  renderSkillMoverList($('#trend-down'), movers.down, { stagger: true });
 
-  const ranking = computeSkillMentionRanking(skillTagTrend, { topN: 15 });
-  renderHBarChart(
+  const ranking = computeSkillMentionRanking(skillTagTrend, { topN: 10 });
+  renderDonutRanking(
     $('#trend-ranking'),
     ranking.map((r) => ({ label: r.skill_name, value: r.mention_count, colorKey: r.skill_name })),
-    { valueSuffix: '회', showPercentOfTotal: false, emptyMessage: '데이터가 없습니다.' }
+    { valueSuffix: '회', emptyMessage: '데이터가 없습니다.' }
+  );
+
+  // 매력 태그 효과 시뮬레이션 (데모, 합성값) — 회사/공고 선택과 무관한 고정 지표라 진단 탭이 아닌 트렌드 탭에 배치
+  const tagRanking = rankTagEffectStats(tagEffectStats, 8);
+  renderDonutRanking(
+    $('#trend-tag-effect-ranking'),
+    tagRanking.map((t) => ({ label: t.tag_name, value: Math.round(t.avg_applicants || 0), colorKey: t.tag_name })),
+    { valueSuffix: '명(데모)', emptyMessage: '데이터가 없습니다.' }
   );
 }
 
@@ -1114,10 +1413,15 @@ async function handleAuthChangeForBookmarks(session) {
 }
 
 function setupAuthListener() {
+  // onAuthStateChange 콜백 안에서 곧바로 다른 supabase.auth.* 메서드(getSession 등)를
+  // 호출하면 GoTrueClient 내부 락이 걸려 영원히 멈춘다(Supabase 공식 문서에 명시된 데드락 함정).
+  // setTimeout으로 콜백 실행을 한 틱 미뤄서 락이 풀린 뒤에 실행되게 한다.
   supabase.auth.onAuthStateChange((_event, session) => {
-    handleAuthChangeForBookmarks(session).catch((err) => {
-      console.error('[app] 로그인 상태 변경 처리 실패', err);
-    });
+    setTimeout(() => {
+      handleAuthChangeForBookmarks(session).catch((err) => {
+        console.error('[app] 로그인 상태 변경 처리 실패', err);
+      });
+    }, 0);
   });
 }
 
@@ -1159,7 +1463,13 @@ function setupNav() {
     btn.addEventListener('click', () => {
       const nav = btn.closest('.subtab-nav');
       const mode = nav ? nav.dataset.modeTabs : state.mode;
-      setTab(mode, btn.dataset.tab);
+      const tab = btn.dataset.tab;
+      setTab(mode, tab);
+      // 트렌드 탭은 등장 애니메이션(도넛 자동 한 바퀴, 상승/하락 태그 순차 팝)이 있어서
+      // 페이지 로드 때 숨겨진 채로 미리 재생되어 버리지 않도록, 실제로 탭에 들어올 때 다시 그린다.
+      if (mode === 'recruiter' && tab === 'trend') {
+        renderTrendTab();
+      }
     });
   });
   document.body.addEventListener('click', (e) => {
@@ -1242,7 +1552,7 @@ function setupRetry() {
 }
 
 function setupStaticListenersOnce() {
-  // 아래 셀렉트/인푸 요소들은 index.html에 고정 마크업으로 존재하며(옵션만 동적으로 채워짐)
+  // 아래 셀렉트/인풋 요소들은 index.html에 고정 마크업으로 존재하며(옵션만 동적으로 채워짐)
   // 데이터 재로딩(realtime refresh) 시 renderAll()이 반복 호출되어도 이 리스너들은 다시 붙이지 않는다
   // (그렇지 않으면 재조회 때마다 change 리스너가 중복 등록된다).
   setupRoadmapListeners();
